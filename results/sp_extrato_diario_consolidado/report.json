@@ -1,0 +1,72 @@
+{
+  "parsing": {
+    "status": "sucesso",
+    "routine": "sp_extrato_diario_consolidado",
+    "kind": "function",
+    "features": [
+      "jsonb",
+      "recursive_cte",
+      "raise",
+      "exception_block",
+      "return_query"
+    ]
+  },
+  "analysis": {
+    "status": "sucesso",
+    "routine": "sp_extrato_diario_consolidado",
+    "risk_count": 5,
+    "risks": [
+      {
+        "feature": "jsonb",
+        "severity": "high",
+        "guidance": "Preservar a construcao JSONB no PostgreSQL ou validar explicitamente a equivalencia do JSON Python."
+      },
+      {
+        "feature": "recursive_cte",
+        "severity": "high",
+        "guidance": "Preservar o limite e a inclusao de meses da recursao; testar periodos de um e varios meses."
+      },
+      {
+        "feature": "raise",
+        "severity": "high",
+        "guidance": "Distinguir erros de negocio de mensagens NOTICE/WARNING e manter a propagacao definida pela origem."
+      },
+      {
+        "feature": "exception_block",
+        "severity": "high",
+        "guidance": "Preserve the exact protected exception scope: Python validation must remain inside the same try boundary as the source block, including invalid-period checks. Keep fallback values and audit behavior identical for errors caught by that block."
+      },
+      {
+        "feature": "return_query",
+        "severity": "high",
+        "guidance": "Representar o resultado set-returning como uma colecao tipada e preservar a ordenacao."
+      }
+    ]
+  },
+  "generation": {
+    "status": "sucesso",
+    "attempt": 3
+  },
+  "validation": {
+    "status": "falha",
+    "attempt": 3,
+    "issues": [
+      "TRY401 Redundant exception object included in `logging.exception` call",
+      "   --> generated.py:102:78",
+      "    |",
+      "100 |                 audit_conn.commit()",
+      "101 |             except SQLAlchemyError as audit_err:",
+      "102 |                 logger.exception(\"Failed to audit business transaction: %s\", audit_err)",
+      "    |                                                                              ^^^^^^^^^",
+      "103 |",
+      "104 |         rows = conn.execute(",
+      "    |",
+      "Found 1 error."
+    ],
+    "autofixes_applied": true
+  },
+  "persistence": {
+    "status": "sucesso",
+    "history_id": "791866dd-c254-41c0-a3ab-ecaae611b2dc"
+  }
+}

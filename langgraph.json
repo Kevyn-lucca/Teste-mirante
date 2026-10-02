@@ -1,0 +1,6 @@
+{
+  "dependencies": ["."],
+  "graphs": { "modernizer": "./src/modernizer/graph/graphbuilder.py:graph" },
+  "http": { "app": "modernizer.api.app:app" },
+  "env": ".env"
+}

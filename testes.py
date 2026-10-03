@@ -1,47 +1,20 @@
+"""Envia amostras PL/pgSQL ao servidor Modernizer e resume o resultado."""
 
 import argparse
 import os
 import sys
-import threading
 import time
 from pathlib import Path
 
 import httpx
 
 DEFAULT_URL = os.getenv("MODERNIZE_URL", "http://127.0.0.1:8123/modernize")
-START = time.monotonic()
+SAMPLES_DIR = Path("samples")
+SCHEMA_PREFIX = "00_"
 
 
-def log(message: str) -> None:
-    elapsed = time.monotonic() - START
-    print(f"[{elapsed:7.1f}s] {message}", flush=True)
-
-
-class Heartbeat:
-
-    def __init__(self, label: str, interval: float = 10.0) -> None:
-        self.label = label
-        self.interval = interval
-        self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._run, daemon=True)
-        self._began = time.monotonic()
-
-    def _run(self) -> None:
-        while not self._stop.wait(self.interval):
-            waited = time.monotonic() - self._began
-            log(f"{self.label}: ainda aguardando resposta do servidor ({waited:.0f}s)...")
-
-    def __enter__(self) -> "Heartbeat":
-        self._thread.start()
-        return self
-
-    def __exit__(self, *exc) -> None:
-        self._stop.set()
-
-
-def ensure_server_is_running(url: str) -> None:
+def check_server(url: str) -> None:
     health_url = url.rsplit("/", 1)[0] + "/health"
-    log(f"Verificando servidor em {health_url}")
     try:
         response = httpx.get(health_url, timeout=10)
     except httpx.HTTPError as error:
@@ -52,10 +25,8 @@ def ensure_server_is_running(url: str) -> None:
 
     if response.status_code != 200:
         raise RuntimeError(
-            f"Health check falhou em {health_url} (status={response.status_code}). "
-            "Verifique se o servidor foi iniciado e se a porta 8123 esta livre."
+            f"Health check falhou em {health_url} (status={response.status_code})."
         )
-    log("Servidor OK")
 
 
 def main() -> int:
@@ -64,97 +35,97 @@ def main() -> int:
         "samples",
         nargs="*",
         type=Path,
-        help="arquivos .sql a enviar (padrao: samples/01 a 05)",
+        help="arquivos .sql a enviar (padrao: todos de samples/, exceto 00_)",
     )
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument(
-        "--no-schema", action="store_true", help="nao envia o schema do Anexo A"
+        "--no-schema", action="store_true", help="nao envia o schema (00_*.sql)"
     )
     parser.add_argument(
         "--show-code", action="store_true", help="imprime o Python gerado"
     )
-    parser.add_argument("--timeout", type=float, default=300, help="timeout por amostra (s)")
-    parser.add_argument("--verbose", "-v", action="store_true", help="mais detalhes")
+    parser.add_argument(
+        "--timeout", type=float, default=300, help="timeout por amostra (s)"
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="mostra o detalhe da validacao"
+    )
     args = parser.parse_args()
 
-    log(f"URL alvo: {args.url}")
     try:
-        ensure_server_is_running(args.url)
+        check_server(args.url)
     except RuntimeError as error:
-        log(f"ERRO: {error}")
+        print(f"ERRO: {error}")
         return 2
 
-    samples = args.samples or sorted(Path("samples").glob("0[1-6]_*.sql"))
-    log(f"{len(samples)} amostra(s): {[s.name for s in samples]}")
+    samples = args.samples or [
+        p
+        for p in sorted(SAMPLES_DIR.glob("*.sql"))
+        if not p.stem.startswith(SCHEMA_PREFIX)
+    ]
 
     schema_sql = None
     if not args.no_schema:
-        schema_files = sorted(Path("samples").glob("00_*.sql"))
+        schema_files = sorted(SAMPLES_DIR.glob(f"{SCHEMA_PREFIX}*.sql"))
         if schema_files:
             schema_sql = schema_files[0].read_text(encoding="utf-8")
-            log(f"Schema carregado: {schema_files[0].name} ({len(schema_sql)} chars)")
         else:
-            log("AVISO: nenhum samples/00_*.sql encontrado, enviando sem schema")
-    else:
-        log("Schema desativado (--no-schema)")
+            print("AVISO: nenhum schema 00_*.sql encontrado, enviando sem schema")
 
-    timeout = httpx.Timeout(args.timeout, connect=10)
+    total = len(samples)
     failures = 0
+    timeout = httpx.Timeout(args.timeout, connect=10)
 
     for index, sample in enumerate(samples, start=1):
-        label = f"{sample.stem} ({index}/{len(samples)})"
-        source = sample.read_text(encoding="utf-8")
-        payload = {"source_code": source, "schema_sql": schema_sql}
-        log(f"{label}: enviando POST ({len(source)} chars de codigo)")
+        prefix = f"[{index}/{total}] {sample.stem}:"
+        payload = {
+            "source_code": sample.read_text(encoding="utf-8"),
+            "schema_sql": schema_sql,
+        }
 
         began = time.monotonic()
         try:
-            with Heartbeat(label):
-                response = httpx.post(args.url, json=payload, timeout=timeout)
-        except httpx.TimeoutException as error:
-            log(f"{label}: TIMEOUT apos {time.monotonic() - began:.0f}s ({error!r})")
-            log("  -> veja o terminal do langgraph dev: LLM lento? banco/Langfuse pendurado?")
+            response = httpx.post(args.url, json=payload, timeout=timeout)
+        except httpx.TimeoutException:
+            print(f"{prefix} TIMEOUT apos {args.timeout:.0f}s")
             failures += 1
             continue
         except httpx.HTTPError as error:
-            log(f"{label}: ERRO de requisicao: {error!r}")
+            print(f"{prefix} ERRO de requisicao: {error!r}")
             failures += 1
             continue
-
         took = time.monotonic() - began
-        log(f"{label}: resposta HTTP {response.status_code} em {took:.1f}s")
 
         if response.status_code >= 400:
-            log(f"{label}: corpo do erro: {response.text[:1000]}")
+            print(f"{prefix} HTTP {response.status_code}: {response.text[:300]}")
             failures += 1
             continue
 
         try:
             data = response.json()
         except ValueError:
-            log(f"{label}: resposta nao e JSON: {response.text[:500]}")
+            print(f"{prefix} resposta nao e JSON: {response.text[:300]}")
             failures += 1
             continue
 
-        if args.verbose:
-            log(f"{label}: chaves da resposta: {sorted(data.keys())}")
-
-        status = data.get("status")
-        validation = data.get("report", {}).get("validation", {})
-        log(
-            f"{label}: {status} | tentativas={validation.get('attempt')} "
-            f"| history_id={data.get('history_id')} | trace_id={data.get('trace_id')}"
+        report = data.get("report", {})
+        validation = report.get("validation", {})
+        attempts = validation.get("attempt") or report.get("generation", {}).get(
+            "attempt"
         )
-        if args.verbose and validation:
-            log(f"{label}: validacao: {validation}")
+        status = data.get("status")
 
+        print(f"{prefix} {status} | tentativas={attempts} | {took:.1f}s")
+
+        if args.verbose and validation:
+            print(f"    validacao: {validation}")
         if args.show_code:
-            print(data.get("generated_code") or "(sem codigo gerado)", flush=True)
-            print("-" * 60, flush=True)
+            print(data.get("generated_code") or "(sem codigo gerado)")
+            print("-" * 60)
         if status != "sucesso":
             failures += 1
 
-    log(f"Fim: {len(samples) - failures} ok, {failures} falha(s)")
+    print(f"Fim: {total - failures} ok, {failures} falha(s)")
     return 1 if failures else 0
 
 

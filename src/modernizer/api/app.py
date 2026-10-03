@@ -22,7 +22,7 @@ app = FastAPI()
 logger = logging.getLogger(__name__)
 
 SAMPLES_DIR = Path("samples")
-EVAL_GLOB = "0[1-5]_*.sql"  # Anexos B a F
+EVAL_GLOB = "0[1-9]_*.sql"  
 SCORE_NAMES = [
     "completed_without_error",
     "quality_score",
@@ -35,7 +35,6 @@ SCORE_NAMES = [
 
 
 def normalize_trace_id(handler: Any | None) -> str | None:
-    """Extrai o last_trace_id do handler, descartando valores inválidos."""
     if handler is None:
         return None
 
@@ -43,7 +42,6 @@ def normalize_trace_id(handler: Any | None) -> str | None:
     if trace_id is None:
         return None
 
-    # Descarta o ID "zero" que às vezes aparece
     if isinstance(trace_id, str) and trace_id.strip() == "0" * 32:
         return None
 
@@ -52,12 +50,14 @@ def normalize_trace_id(handler: Any | None) -> str | None:
 
 async def _send_scores(
     trace_id: str | None, state: dict[str, Any], completed: bool
-) -> None:
-    """Registra as notas de avaliação no Langfuse sem nunca derrubar a resposta."""
+) -> dict[str, Any] | None:
+
     try:
-        await asyncio.to_thread(log_scores, trace_id, state, completed)
+        scores = await asyncio.to_thread(log_scores, trace_id, state, completed)
+        return scores if isinstance(scores, dict) else None
     except Exception:
         logger.exception("Falha ao registrar scores de avaliação")
+        return None
 
 
 class ModernizeRequest(BaseModel):
@@ -77,10 +77,10 @@ async def modernize(req: ModernizeRequest) -> dict:
     session_id = str(uuid4())
 
     final_trace_id = None
+    scores: dict[str, Any] | None = None
 
     langfuse_handler = None
     try:
-        # to_thread: a criação do handler pode fazer I/O síncrono
         langfuse_handler = await asyncio.to_thread(create_langfuse_handler)
         observability = {
             "status": "ativo" if langfuse_handler else "desativado",
@@ -132,12 +132,11 @@ async def modernize(req: ModernizeRequest) -> dict:
         )
 
         final_trace_id = normalize_trace_id(langfuse_handler)
-        await _send_scores(final_trace_id, result, completed=True)
+        scores = await _send_scores(final_trace_id, result, completed=True)
 
     except Exception as error:  # noqa: BLE001
-        # Mesmo com o grafo quebrado, o handler já tem o trace_id da execução
         final_trace_id = normalize_trace_id(langfuse_handler)
-        await _send_scores(final_trace_id, {}, completed=False)
+        scores = await _send_scores(final_trace_id, {}, completed=False)
 
         report: dict[str, Any] = {
             **initial_report,
@@ -177,11 +176,11 @@ async def modernize(req: ModernizeRequest) -> dict:
             "report": report,
             "status": "falha",
             "history_id": history_id,
+            "evaluation": scores or {},
             "trace_id": final_trace_id,
         }
 
     finally:
-        # Sempre tenta flush (mesmo em caso de erro)
         if langfuse_handler is not None:
             try:
                 await asyncio.to_thread(flush_langfuse)
@@ -193,6 +192,7 @@ async def modernize(req: ModernizeRequest) -> dict:
         "report": result.get("report", {}) if result else {},
         "status": result.get("status", "falha") if result else "falha",
         "history_id": result.get("history_id") if result else None,
+        "evaluation": (result.get("evaluation") if result else None) or scores or {},
         "trace_id": final_trace_id,
     }
 
@@ -210,7 +210,6 @@ async def modernize(req: ModernizeRequest) -> dict:
 
 
 def _load_eval_inputs() -> tuple[str | None, list[tuple[str, str]]]:
-    """Leitura de arquivos (síncrona): rodar sempre via asyncio.to_thread."""
     schema_files = sorted(SAMPLES_DIR.glob("00_*.sql"))
     schema = schema_files[0].read_text(encoding="utf-8") if schema_files else None
     procedures = [
@@ -220,9 +219,8 @@ def _load_eval_inputs() -> tuple[str | None, list[tuple[str, str]]]:
     return schema, procedures
 
 
-@app.post("/evaluation/run")
+@app.get("/evaluation/run")
 async def run_evaluation() -> dict:
-    """Roda o conjunto dos Anexos B a F e devolve a métrica agregada."""
     schema_sql, procedures = await asyncio.to_thread(_load_eval_inputs)
 
     rows: list[dict[str, Any]] = []
@@ -230,18 +228,41 @@ async def run_evaluation() -> dict:
         response = await modernize(
             ModernizeRequest(source_code=source, schema_sql=schema_sql)
         )
-        report = response.get("report", {})
-        completed = report.get("pipeline", {}).get("status") != "falha"
-        evaluation = {
-            "completed_without_error": float(completed),
-            **report.get("evaluation", {}),
-        }
+        report = response.get("report") or {}
+
+        raw_eval = response.get("evaluation") or report.get("evaluation") or {}
+        if not isinstance(raw_eval, dict):
+            logger.warning("evaluation de %s nao e dict: %r", name, type(raw_eval))
+            raw_eval = {}
+
+        pipeline_status = (report.get("pipeline") or {}).get("status")
+        completed = response.get("status") != "falha" and pipeline_status != "falha"
+
+        logger.info("Response keys for %s: %s", name, list(response.keys()))
+        logger.info("Evaluation for %s: %s", name, raw_eval)
+
+        missing = [
+            n
+            for n in SCORE_NAMES
+            if n != "completed_without_error" and n not in raw_eval
+        ]
+        if missing:
+            logger.warning(
+                "Metricas ausentes em %s: %s (chaves recebidas: %s)",
+                name,
+                missing,
+                list(raw_eval.keys()),
+            )
+
+        # completed_without_error calculado aqui sempre prevalece
+        evaluation = {**raw_eval, "completed_without_error": float(completed)}
+
         rows.append(
             {
                 "procedure": name,
                 "status": response.get("status"),
                 "trace_id": response.get("trace_id"),
-                **{n: float(evaluation.get(n, 0.0)) for n in SCORE_NAMES},
+                **{n: float(evaluation.get(n) or 0.0) for n in SCORE_NAMES},
             }
         )
 

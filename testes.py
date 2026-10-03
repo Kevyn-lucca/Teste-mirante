@@ -1,8 +1,3 @@
-"""Chama o /modernize como um usuario normal faria.
-
-Envia as procedures, imprime o resultado no terminal e nao cria pastas
-nem grava arquivos.
-"""
 
 import argparse
 import os
@@ -23,7 +18,6 @@ def log(message: str) -> None:
 
 
 class Heartbeat:
-    """Imprime 'aguardando...' a cada N segundos enquanto o servidor processa."""
 
     def __init__(self, label: str, interval: float = 10.0) -> None:
         self.label = label

@@ -12,6 +12,8 @@ RUFF_BASE = [
     "--isolated",
     "--select",
     "E,F,I,S110",
+    "--ignore",
+    "E501",
     "--stdin-filename",
     "generated.py",
 ]

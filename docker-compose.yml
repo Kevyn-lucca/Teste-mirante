@@ -74,7 +74,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./results:/app/results
-
+      - ./samples:/app/samples:ro
   # ------------------------------------------------------------------
   # Observabilidade: Langfuse self-hosted
   # ------------------------------------------------------------------

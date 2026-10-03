@@ -4,10 +4,9 @@ from typing import Any
 
 MAX_ATTEMPTS = 3  # manter igual ao MAX_ATTEMPTS do graphbuilder.py
 
-# Notas que não são booleanas: vão ao Langfuse como NUMERIC
+
 NUMERIC_SCORES = {"attempts", "quality_score"}
 
-# Pesos da nota composta (somam 1.0)
 WEIGHTS = {"lint": 0.35, "status": 0.25, "efficiency": 0.40}
 
 
@@ -76,7 +75,7 @@ def log_scores(
         return scores
 
     from langfuse import (
-        get_client,  # import local: compute_scores testável sem Langfuse
+        get_client,  
     )
 
     langfuse = get_client()

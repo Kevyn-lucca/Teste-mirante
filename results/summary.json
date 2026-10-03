@@ -1,44 +1,44 @@
 [
   {
-    "sample": "SELECT_1",
-    "status": "falha",
-    "history_id": "history-id",
-    "trace_id": null
-  },
-  {
     "sample": "fn_saldo_cliente",
     "status": "sucesso",
-    "history_id": "e67df00e-cfab-47e8-9f8c-97942b650095",
-    "trace_id": "0f37cdfbd1a5bdff068db5d5c03591e9"
+    "history_id": "bce42a0f-54bc-4309-a7c0-01a1af834b85",
+    "trace_id": "b318bbb4cd83a94a8c7d7de4e316702c"
   },
   {
     "sample": "sp_atualizar_status_contas_inativas",
     "status": "sucesso",
-    "history_id": "a6ef3000-20ee-46a1-b726-6359772ee461",
-    "trace_id": "2bfd6286dfcd193332214c0340f6cbab"
+    "history_id": "30fb4df5-b9b6-47c5-a3e3-6bc2bff9132a",
+    "trace_id": "bdf36dd8f2cd05f509a7afe14fca7c9b"
   },
   {
     "sample": "sp_transferir_entre_contas",
     "status": "sucesso",
-    "history_id": "40e6dff6-4e59-43df-8a37-256fc3bba71c",
-    "trace_id": "8e76fc1e8e414950965e340c9279a1db"
+    "history_id": "e56d76b3-24ef-4acc-ba1f-18e72f8ff19f",
+    "trace_id": "fac8da08bba5bb24c853b9829311761b"
   },
   {
     "sample": "sp_processar_lote_taxas",
     "status": "sucesso",
-    "history_id": "52e6022a-aba0-4fae-bafe-17697b96efdd",
-    "trace_id": "6f2badca22caa9fd5d3cc9bac125bb58"
+    "history_id": "c4bd1ac5-5ffb-4c30-9680-a38bcafb2f15",
+    "trace_id": "01860247e191aafca70fd39034f3cd6f"
   },
   {
     "sample": "sp_relatorio_mensal_cliente",
     "status": "sucesso",
-    "history_id": "172b6fb4-a18b-4490-8b47-92c1d904a52c",
-    "trace_id": "8a48a8d80a9125560cf490b9e830a168"
+    "history_id": "b9747c29-fe80-4a17-91b8-aafad68fd737",
+    "trace_id": "1a8ac0af3931ab43e52ed954bd7b9bf8"
   },
   {
     "sample": "sp_extrato_diario_consolidado",
     "status": "sucesso",
-    "history_id": "cc17ac60-9a4a-43a3-ae50-ca40a9475edb",
-    "trace_id": "5b68417501b911cc0f779706cd949e91"
+    "history_id": "137ed546-0db3-4e35-ab67-b1a8696dd20d",
+    "trace_id": "7e3d1c6834b284487ed27b1b634e7fc9"
+  },
+  {
+    "sample": "SELECT_1",
+    "status": "falha",
+    "history_id": "history-id",
+    "trace_id": null
   }
 ]

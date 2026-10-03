@@ -122,24 +122,24 @@
   },
   "generation": {
     "status": "sucesso",
-    "attempt": 2
+    "attempt": 1
   },
   "validation": {
     "status": "sucesso",
-    "attempt": 2,
+    "attempt": 1,
     "issues": [],
     "autofixes_applied": true
   },
   "persistence": {
     "status": "sucesso",
-    "history_id": "cc17ac60-9a4a-43a3-ae50-ca40a9475edb"
+    "history_id": "137ed546-0db3-4e35-ab67-b1a8696dd20d"
   },
   "evaluation": {
-    "quality_score": 8.2,
+    "quality_score": 10.0,
     "status_success": 1.0,
     "ast_parse_ok": 1.0,
     "lint_clean": 1.0,
-    "first_attempt_pass": 0.0,
-    "attempts": 2.0
+    "first_attempt_pass": 1.0,
+    "attempts": 1.0
   }
 }

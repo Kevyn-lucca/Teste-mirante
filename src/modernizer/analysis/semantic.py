@@ -1,7 +1,6 @@
 from typing import Any
 
-# Orientações de tradução por construção. São genéricas de propósito: valem para
-# qualquer procedure PL/pgSQL, não para um caso de teste específico.
+# Orientações de tradução por construção.
 _RISK_GUIDANCE = {
     "cursor": (
         "Carregar as linhas em lote. Lookups feitos por registro devem virar JOIN/LATERAL "
@@ -43,7 +42,7 @@ _RISK_GUIDANCE = {
     ),
 }
 
-# Severidade por construção (critério inicial, ajustável).
+# Severidade por construção 
 _SEVERITY = {
     "for_update": "high",
     "exception_block": "high",

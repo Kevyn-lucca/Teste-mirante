@@ -33,6 +33,7 @@ Este sistema demonstra a aplicação prática de **arquitetura multi-agente base
 O sistema utiliza **LangGraph** para orquestrar um pipeline de 6 agentes especializados com retry condicional:
 
 <!-- GRAPH:START -->
+
 ```mermaid
 ---
 config:
@@ -62,6 +63,7 @@ graph TD;
 	classDef last fill:#bfb6fc
 
 ```
+
 <!-- GRAPH:END -->
 
 ### Fluxo de Execução
@@ -97,27 +99,28 @@ sequenceDiagram
 
 ### Componentes e Responsabilidades
 
-| Nó | Entrada | Saída | Tecnologia | Propósito |
-|---|---|---|---|---|
-| **Parse** | SQL bruto | AST + features | `pglast` | Extrai estrutura e identifica construções críticas |
-| **Analyze** | AST estruturada | Risk mapping | LLM (Gemini) | Mapeia riscos semânticos e gera diretrizes de conversão |
-| **Generate** | Risks + schema | Python code | LLM (Gemini) | Gera código Python com SQLAlchemy parametrizado |
-| **Validate** | Python code | Issues list | `ast.parse` + Ruff | Valida sintaxe e aplica linter |
-| **Persist** | Full state | history_id | PostgreSQL | Armazena histórico e artefatos |
-| **Evaluate** | Full state | Metrics | Algoritmo ponderado | Calcula quality score |
+| Nó           | Entrada         | Saída          | Tecnologia          | Propósito                                               |
+| ------------ | --------------- | -------------- | ------------------- | ------------------------------------------------------- |
+| **Parse**    | SQL bruto       | AST + features | `pglast`            | Extrai estrutura e identifica construções críticas      |
+| **Analyze**  | AST estruturada | Risk mapping   | LLM (Gemini)        | Mapeia riscos semânticos e gera diretrizes de conversão |
+| **Generate** | Risks + schema  | Python code    | LLM (Gemini)        | Gera código Python com SQLAlchemy parametrizado         |
+| **Validate** | Python code     | Issues list    | `ast.parse` + Ruff  | Valida sintaxe e aplica linter                          |
+| **Persist**  | Full state      | history_id     | PostgreSQL          | Armazena histórico e artefatos                          |
+| **Evaluate** | Full state      | Metrics        | Algoritmo ponderado | Calcula quality score                                   |
 
 ## Instalação Rápida
 
 ### Pré-requisitos
 
-* Python 3.14+
-* [uv](https://github.com/astral-sh/uv) (gerenciador de dependências)
-* Docker
-* Chave de API do Google Gemini, especificamente gemini-3.5-flash-lite ([obter aqui](https://aistudio.google.com/app/apikey))
+- Python 3.14+
+- [uv](https://github.com/astral-sh/uv) (gerenciador de dependências)
+- Docker
+- Chave de API do Google Gemini, especificamente gemini-3.5-flash-lite ([obter aqui](https://aistudio.google.com/app/apikey))
 
 ### Setup Completo
 
 **1. Clone e instale as dependências**
+
 ```bash
 git clone https://github.com/Kevyn-lucca/Teste-mirante.git
 cd Teste-mirante
@@ -125,12 +128,14 @@ uv sync
 ```
 
 **2. Configure as variáveis de ambiente**
+
 ```bash
 cp .env.example .env
 # Edite o .env e adicione sua GOOGLE_API_KEY
 ```
 
 Variáveis necessárias:
+
 ```ini
 GOOGLE_API_KEY=sua-chave-gemini-aqui
 MODEL_NAME=google_genai:gemini-3.5-flash-lite
@@ -143,6 +148,7 @@ LANGFUSE_BASE_URL=http://localhost:3000
 Os valores de `LANGFUSE_PUBLIC_KEY` e `LANGFUSE_SECRET_KEY` acima são os padrões do `docker-compose.yml` e servem apenas para uso local. Em qualquer outro ambiente, defina chaves próprias no `.env`. Dentro dos containers, o compose sobrescreve `DATABASE_URL` e `LANGFUSE_BASE_URL` para apontar para os serviços internos, então esses dois valores do `.env` só importam quando você roda o código fora do Docker.
 
 **3. Inicie a infraestrutura**
+
 ```bash
 docker compose up -d --build
 # Aguarde cerca de 30s para a inicialização completa
@@ -150,22 +156,23 @@ docker compose up -d --build
 
 Este comando sobe todos os serviços:
 
-| Serviço | Endereço local | Função |
-|---|---|---|
-| `langgraph` | http://localhost:8123 | API do Modernizer |
-| `postgres` | localhost:5432 | Banco de dados do Modernizer |
-| `langfuse-web` | http://localhost:3000 | Interface do Langfuse |
+| Serviço        | Endereço local        | Função                       |
+| -------------- | --------------------- | ---------------------------- |
+| `langgraph`    | http://localhost:8123 | API do Modernizer            |
+| `postgres`     | localhost:5432        | Banco de dados do Modernizer |
+| `langfuse-web` | http://localhost:3000 | Interface do Langfuse        |
 
 Os demais serviços (`langfuse-worker`, `langfuse-postgres`, `langfuse-clickhouse` e `langfuse-redis`) são internos e não expõem porta.
 
 O Langfuse é inicializado automaticamente no primeiro start, com organização, projeto e chaves já criados. Para ver os traces, acesse http://localhost:3000 e entre com o usuário local:
 
-* E-mail: `admin@local.test`
-* Senha: `admin-local-123`
+- E-mail: `admin@local.test`
+- Senha: `admin-local-123`
 
 Essas credenciais e as chaves padrão são apenas para demonstração local e devem ser trocadas fora desse contexto.
 
 **4. Teste com exemplos**
+
 ```bash
 # Em outro terminal
 uv run python testes.py --samples 01 02 03
@@ -212,13 +219,13 @@ O histórico das modernizações fica no PostgreSQL do serviço `postgres`, defi
 
 ### Dados de conexão
 
-| Parâmetro | Valor |
-|---|---|
-| Host | `localhost` |
-| Porta | `5432` (configurável com `POSTGRES_PORT`) |
-| Banco | `modernizer` |
-| Usuário | `modernizer` |
-| Senha | `modernizer` |
+| Parâmetro | Valor                                     |
+| --------- | ----------------------------------------- |
+| Host      | `localhost`                               |
+| Porta     | `5432` (configurável com `POSTGRES_PORT`) |
+| Banco     | `modernizer`                              |
+| Usuário   | `modernizer`                              |
+| Senha     | `modernizer`                              |
 
 String de conexão completa:
 
@@ -260,27 +267,35 @@ uv run ruff check src
 ## Funcionalidades
 
 ### Parsing de PL/pgSQL
+
 Analisa o código fonte SQL com `pglast.parse_sql` e `pglast.parse_plpgsql`, extraindo nome da rotina, tipo (function ou procedure), parâmetros e tipos de retorno, e identificando recursos sintáticos críticos como cursores, blocos EXCEPTION e CTE recursivo.
 
 ### Análise Semântica e Mapeamento de Riscos
+
 Examina os recursos identificados na AST e gera um relatório estruturado com diretrizes de tradução para cada padrão procedural encontrado, como conversão de cursores em lote para evitar consultas N+1 e isolamento de conexão em auditoria de exceções.
 
 ### Geração de Código Python com LLM
+
 Constrói um prompt contextualizado com as regras gerais de migração, o esquema da tabela, a assinatura e os riscos mapeados, instruindo o modelo a gerar código Python 3.14 com SQLAlchemy parametrizado e manipulação monetária com Decimal.
 
 ### Validação Estática e Autocorreção
+
 Verifica o código gerado em duas etapas: validação de sintaxe via `ast.parse` e análise de conformidade com `ruff check` (regras E, F, I, S110). Aplica autocorreção segura de importações não utilizadas e ordenação antes de reportar problemas.
 
 ### Persistência de Histórico de Modernização
+
 Armazena o código fonte original, o código Python resultante, o status da execução e o relatório detalhado em formato JSONB na tabela `modernization_history` do PostgreSQL.
 
 ### Exportação de Artefatos de Execução
+
 Salva em disco, na pasta `results/<nome_rotina>/`, os arquivos `generated.py` e `report.json` correspondentes, além de manter consolidado o arquivo `results/summary.json` com o status de todas as execuções.
 
 ### Avaliação de Qualidade e Métricas
+
 Calcula métricas compostas de conclusão, conformidade sintática, conformidade de linter e eficiência por tentativa, enviando as pontuações diretamente para o Langfuse quando configurado.
 
 ### Observabilidade e Rastreamento com Langfuse
+
 Integra tracing assíncrono com LangChain CallbackHandler para registrar a árvore de execução dos nós, as chamadas a LLMs, os tempos de resposta e os scores vinculados a cada sessão de modernização.
 
 ## API Endpoints
@@ -290,6 +305,7 @@ Integra tracing assíncrono com LangChain CallbackHandler para registrar a árvo
 Verifica a disponibilidade do serviço.
 
 Resposta:
+
 ```json
 {
   "status": "ok"
@@ -301,6 +317,7 @@ Resposta:
 Processa a conversão de uma rotina PL/pgSQL para Python.
 
 Requisição:
+
 ```json
 {
   "source_code": "CREATE OR REPLACE FUNCTION fn_saldo_cliente(p_cliente_id INT) RETURNS NUMERIC AS $$ ... $$ LANGUAGE plpgsql;",
@@ -309,16 +326,35 @@ Requisição:
 ```
 
 Resposta:
+
 ```json
 {
   "generated_code": "from decimal import Decimal\nfrom sqlalchemy import text\n\ndef fn_saldo_cliente(connection, p_cliente_id: int) -> Decimal:\n    ...",
   "report": {
-    "parsing": { "status": "sucesso", "routine": "fn_saldo_cliente", "kind": "function" },
+    "parsing": {
+      "status": "sucesso",
+      "routine": "fn_saldo_cliente",
+      "kind": "function"
+    },
     "analysis": { "status": "sucesso", "risk_count": 0, "risks": [] },
     "generation": { "status": "sucesso", "attempt": 1 },
-    "validation": { "status": "sucesso", "issues": [], "autofixes_applied": false },
-    "persistence": { "status": "sucesso", "history_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d" },
-    "evaluation": { "quality_score": 1.0, "status_success": 1.0, "ast_parse_ok": 1.0, "lint_clean": 1.0, "first_attempt_pass": 1.0, "attempts": 1.0 }
+    "validation": {
+      "status": "sucesso",
+      "issues": [],
+      "autofixes_applied": false
+    },
+    "persistence": {
+      "status": "sucesso",
+      "history_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
+    },
+    "evaluation": {
+      "quality_score": 1.0,
+      "status_success": 1.0,
+      "ast_parse_ok": 1.0,
+      "lint_clean": 1.0,
+      "first_attempt_pass": 1.0,
+      "attempts": 1.0
+    }
   },
   "status": "sucesso",
   "history_id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
@@ -339,6 +375,7 @@ Resposta:
 Observa a última bateria de testes e retorna o resumo estatístico de desempenho.
 
 Resposta:
+
 ```json
 {
   "summary": {
@@ -363,16 +400,29 @@ Resposta:
 
 ## Métricas de Avaliação
 
-A pontuação de qualidade do código gerado é calculada de forma ponderada:
+Cada execução recebe uma nota de qualidade (`quality_score`) entre 0 e 1, calculada a partir de três critérios com pesos diferentes:
 
-$$
-\text{QualityScore} = 0.25 \cdot S_{\text{status}} + 0.35 \cdot S_{\text{lint}} + 0.40 \cdot \max\left(0, 1 - \frac{\text{attempts} - 1}{\text{MAX\_ATTEMPTS} - 1}\right)
-$$
+| Critério                  | Peso | O que mede                                                                                                                                     |
+| ------------------------- | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status do pipeline        | 25%  | Vale 1 quando o pipeline termina com sucesso e 0 caso contrário.                                                                               |
+| Lint                      | 35%  | Vale 1 quando o código gerado passa na validação estática sem erros (`lint_clean`) e 0 caso contrário.                                         |
+| Eficiência por tentativas | 40%  | Premia quem acerta nas primeiras tentativas. Uma tentativa vale 1, e cada retry reduz a nota até chegar a 0 na última tentativa permitida (3). |
 
-Onde:
-* $S_{\text{status}} = 1.0$ se o status final do pipeline for sucesso, $0.0$ caso contrário.
-* $S_{\text{lint}} = 1.0$ se a validação estática passar sem erros (`lint_clean`), $0.0$ caso contrário.
-* $\text{attempts}$ representa o número de tentativas executadas ($1$ a $3$).
+Na prática, um código que passa de primeira, sem erros de lint, recebe 1.0. Um código que precisa de retry perde parte dos 40% da eficiência, mesmo que depois seja aprovado.
+
+Além da nota final, cada execução registra métricas individuais, que também são enviadas ao Langfuse:
+
+| Métrica                   | Significado                                      |
+| ------------------------- | ------------------------------------------------ |
+| `completed_without_error` | O pipeline terminou sem exceções.                |
+| `status_success`          | O status final da modernização foi sucesso.      |
+| `ast_parse_ok`            | O código Python gerado tem sintaxe válida.       |
+| `lint_clean`              | O código gerado passou no Ruff sem apontamentos. |
+| `first_attempt_pass`      | O código foi aprovado na primeira tentativa.     |
+| `attempts`                | Número de tentativas executadas, de 1 a 3.       |
+| `quality_score`           | Nota final ponderada, entre 0 e 1.               |
+
+A rota `GET /evaluation/run` calcula a média dessas métricas sobre todas as procedures avaliadas.
 
 ## Observabilidade com Langfuse
 

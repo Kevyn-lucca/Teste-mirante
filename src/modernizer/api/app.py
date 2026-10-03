@@ -1,13 +1,17 @@
 import asyncio
 import logging
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI
+from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
 from modernizer.artifacts import export_execution_artifacts
+from modernizer.evaluation.metrics import log_scores
 from modernizer.graph.graphbuilder import graph
+from modernizer.graph.state import PipelineState
 from modernizer.observability.tracing import (
     create_langfuse_handler,
     flush_langfuse,
@@ -16,6 +20,18 @@ from modernizer.persistence.history import save_execution
 
 app = FastAPI()
 logger = logging.getLogger(__name__)
+
+SAMPLES_DIR = Path("samples")
+EVAL_GLOB = "0[1-5]_*.sql"  # Anexos B a F
+SCORE_NAMES = [
+    "completed_without_error",
+    "quality_score",
+    "status_success",
+    "ast_parse_ok",
+    "lint_clean",
+    "first_attempt_pass",
+    "attempts",
+]
 
 
 def normalize_trace_id(handler: Any | None) -> str | None:
@@ -32,6 +48,16 @@ def normalize_trace_id(handler: Any | None) -> str | None:
         return None
 
     return str(trace_id)
+
+
+async def _send_scores(
+    trace_id: str | None, state: dict[str, Any], completed: bool
+) -> None:
+    """Registra as notas de avaliação no Langfuse sem nunca derrubar a resposta."""
+    try:
+        await asyncio.to_thread(log_scores, trace_id, state, completed)
+    except Exception:
+        logger.exception("Falha ao registrar scores de avaliação")
 
 
 class ModernizeRequest(BaseModel):
@@ -77,7 +103,7 @@ async def modernize(req: ModernizeRequest) -> dict:
         "observability": observability,
     }
 
-    invocation_config: dict[str, Any] = {
+    invocation_config: RunnableConfig = {
         "run_name": "plpgsql-to-python",
         "tags": ["sql-modernization"],
         "metadata": {
@@ -91,21 +117,28 @@ async def modernize(req: ModernizeRequest) -> dict:
         invocation_config["callbacks"] = [langfuse_handler]
 
     result = None
+    initial_state: PipelineState = {
+        "source_code": req.source_code,
+        "schema_sql": schema_sql,
+        "schema_source": schema_source,
+        "report": initial_report,
+        "observability": observability,
+    }
 
     try:
         result = await graph.ainvoke(
-            {
-                "source_code": req.source_code,
-                "schema_sql": schema_sql,
-                "schema_source": schema_source,
-                "report": initial_report,
-            },
+            initial_state,
             config=invocation_config,
         )
 
         final_trace_id = normalize_trace_id(langfuse_handler)
+        await _send_scores(final_trace_id, result, completed=True)
 
     except Exception as error:  # noqa: BLE001
+        # Mesmo com o grafo quebrado, o handler já tem o trace_id da execução
+        final_trace_id = normalize_trace_id(langfuse_handler)
+        await _send_scores(final_trace_id, {}, completed=False)
+
         report: dict[str, Any] = {
             **initial_report,
             "pipeline": {"status": "falha", "error": str(error)},
@@ -174,3 +207,64 @@ async def modernize(req: ModernizeRequest) -> dict:
     )
 
     return response
+
+
+def _load_eval_inputs() -> tuple[str | None, list[tuple[str, str]]]:
+    """Leitura de arquivos (síncrona): rodar sempre via asyncio.to_thread."""
+    schema_files = sorted(SAMPLES_DIR.glob("00_*.sql"))
+    schema = schema_files[0].read_text(encoding="utf-8") if schema_files else None
+    procedures = [
+        (p.stem, p.read_text(encoding="utf-8"))
+        for p in sorted(SAMPLES_DIR.glob(EVAL_GLOB))
+    ]
+    return schema, procedures
+
+
+@app.post("/evaluation/run")
+async def run_evaluation() -> dict:
+    """Roda o conjunto dos Anexos B a F e devolve a métrica agregada."""
+    schema_sql, procedures = await asyncio.to_thread(_load_eval_inputs)
+
+    rows: list[dict[str, Any]] = []
+    for name, source in procedures:
+        response = await modernize(
+            ModernizeRequest(source_code=source, schema_sql=schema_sql)
+        )
+        report = response.get("report", {})
+        completed = report.get("pipeline", {}).get("status") != "falha"
+        evaluation = {
+            "completed_without_error": float(completed),
+            **report.get("evaluation", {}),
+        }
+        rows.append(
+            {
+                "procedure": name,
+                "status": response.get("status"),
+                "trace_id": response.get("trace_id"),
+                **{n: float(evaluation.get(n, 0.0)) for n in SCORE_NAMES},
+            }
+        )
+
+    def rate(score: str) -> float:
+        if not rows:
+            return 0.0
+        total = 0.0
+        for r in rows:
+            val = r.get(score)
+            if isinstance(val, (int, float)):
+                total += float(val)
+        return round(total / len(rows), 3)
+
+    return {
+        "summary": {
+            "procedures": len(rows),
+            "avg_quality_score": rate("quality_score"),
+            "completion_rate": rate("completed_without_error"),
+            "success_rate": rate("status_success"),
+            "ast_parse_rate": rate("ast_parse_ok"),
+            "lint_clean_rate": rate("lint_clean"),
+            "first_attempt_rate": rate("first_attempt_pass"),
+            "avg_attempts": rate("attempts"),
+        },
+        "per_procedure": rows,
+    }

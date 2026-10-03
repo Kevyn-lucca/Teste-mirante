@@ -1,0 +1,43 @@
+{
+  "parsing": {
+    "status": "sucesso",
+    "routine": "fn_saldo_cliente",
+    "kind": "function",
+    "features": [
+      "nested_function_call"
+    ]
+  },
+  "analysis": {
+    "status": "sucesso",
+    "routine": "fn_saldo_cliente",
+    "risk_count": 1,
+    "risks": [
+      {
+        "feature": "nested_function_call",
+        "severity": "high",
+        "guidance": "Preserve nested function behavior and all its filters. fn_saldo_cliente only sums contas whose status is 'ATIVA'; reuse that function or apply the identical predicate when inlining."
+      }
+    ]
+  },
+  "generation": {
+    "status": "sucesso",
+    "attempt": 1
+  },
+  "validation": {
+    "status": "sucesso",
+    "attempt": 1,
+    "issues": [],
+    "autofixes_applied": false
+  },
+  "persistence": {
+    "status": "sucesso",
+    "history_id": "54c85189-ee47-4220-9b0e-def32134570a"
+  },
+  "evaluation": {
+    "status_success": 1.0,
+    "ast_parse_ok": 1.0,
+    "lint_clean": 1.0,
+    "first_attempt_pass": 1.0,
+    "attempts": 1.0
+  }
+}

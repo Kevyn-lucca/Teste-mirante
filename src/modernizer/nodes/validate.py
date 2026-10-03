@@ -1,9 +1,10 @@
-from typing import Any
+﻿from typing import Any
 
+from modernizer.graph.state import PipelineState
 from modernizer.validation.validator import validate_python
 
 
-def validate_node(state: dict[str, Any]) -> dict[str, Any]:
+def validate_node(state: PipelineState) -> dict[str, Any]:
     if state.get("generation_error"):
         validation = {"valid": False, "issues": [state["generation_error"]]}
     else:
@@ -19,9 +20,7 @@ def validate_node(state: dict[str, Any]) -> dict[str, Any]:
     }
     status = (
         "sucesso"
-        if validation["valid"]
-        else "parcial"
-        if state.get("generated_code")
+        if validation["valid"] and not state.get("generation_error")
         else "falha"
     )
     return {

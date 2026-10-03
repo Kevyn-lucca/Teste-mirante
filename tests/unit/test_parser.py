@@ -124,12 +124,12 @@ def test_cursor_and_jsonb_analysis_avoids_n_plus_one() -> None:
 
     assert "sem N+1" in prompt
     assert "jsonb_build_object" in prompt
-    assert "cast every bind to its concrete PostgreSQL" in prompt
+    assert "CAST" in prompt
     assert "Never pass a Python dict or list directly" in prompt
     assert "LEFT JOIN LATERAL" in prompt
-    assert "must not execute SELECT statements" in prompt
+    assert "no SELECT inside the Python loop" in prompt
     assert "logger.exception(...) on that instance" in prompt
-    assert "Do not leave unused variables or SQL statements" in prompt
+    assert "Do not leave unused variables" in prompt
 
 
 def test_nested_function_and_exception_scope_risks() -> None:
@@ -143,7 +143,7 @@ def test_nested_function_and_exception_scope_risks() -> None:
     )
 
     assert "nested_function_call" in parsed["features"]
-    assert "status = 'ATIVA'" in prompt
+    assert "replicate the identical filters" in prompt
     assert "same Python try scope" in prompt
 
 

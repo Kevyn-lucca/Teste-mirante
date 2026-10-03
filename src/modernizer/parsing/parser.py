@@ -1,4 +1,4 @@
-import re
+﻿import re
 from typing import Any
 
 from pglast import parse_plpgsql, parse_sql
@@ -13,30 +13,21 @@ _FEATURE_PATTERNS = {
     "exception_block": r"\bEXCEPTION\s+WHEN\b",
     "return_query": r"\bRETURN\s+QUERY\b",
     "get_diagnostics": r"\bGET\s+DIAGNOSTICS\b",
-    "nested_function_call": r"\bfn_saldo_cliente\s*\(",
+    "nested_function_call": r"\b(?:PERFORM\s+[A-Za-z0-9_]+|CALL\s+[A-Za-z0-9_]+|(?:fn_|sp_)[A-Za-z0-9_]+)\s*\(",
 }
 
 
 def parse_procedure(source_code: str) -> dict[str, Any]:
     """Parse one PostgreSQL routine into metadata and a pglast PL/pgSQL AST."""
     statements = parse_sql(source_code)
-    routines = [
-        statement.stmt
-        for statement in statements
-        if type(statement.stmt).__name__ == "CreateFunctionStmt"
-    ]
-    if len(routines) != 1:
-        raise ValueError(f"Expected one CREATE FUNCTION/PROCEDURE, found {len(routines)}")
+    if not statements:
+        raise ValueError("No SQL statements found in source code")
 
-    routine = routines[0]
+    routine = statements[0].stmt
     plpgsql_ast = parse_plpgsql(source_code)
-    if len(plpgsql_ast) != 1:
-        raise ValueError(f"Expected one PL/pgSQL body, found {len(plpgsql_ast)}")
-
-    body = plpgsql_ast[0]["PLpgSQL_function"]
     declarations = []
-    for datum in body.get("datums", []):
-        variable = datum.get("PLpgSQL_var")
+
+    for variable in plpgsql_ast[0]["PLpgSQL_function"]["datums"]:
         if variable and "lineno" in variable:
             declarations.append(
                 {
@@ -53,20 +44,24 @@ def parse_procedure(source_code: str) -> dict[str, Any]:
         for feature, pattern in _FEATURE_PATTERNS.items()
         if re.search(pattern, source_upper, re.IGNORECASE)
     ]
+    raw_params = getattr(routine, "parameters", None) or ()
     parameters = [
         {
             "name": parameter.name,
             "mode": parameter.mode.value,
             "type": RawStream()(parameter.argType),
         }
-        for parameter in routine.parameters or ()
+        for parameter in raw_params
     ]
 
+    funcname = getattr(routine, "funcname", None)
+    return_type = getattr(routine, "returnType", None)
+
     return {
-        "name": routine.funcname[-1].sval,
-        "kind": "procedure" if routine.is_procedure else "function",
+        "name": funcname[-1].sval if funcname else "unknown",
+        "kind": "procedure" if getattr(routine, "is_procedure", False) else "function",
+        "return_type": RawStream()(return_type) if return_type else "void",
         "parameters": parameters,
-        "return_type": RawStream()(routine.returnType) if routine.returnType else None,
         "declarations": declarations,
         "features": detected_features,
         "sql_statement_types": [type(statement.stmt).__name__ for statement in statements],

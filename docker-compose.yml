@@ -1,7 +1,6 @@
 name: modernizer
 
-# Modo padrao:       docker compose up --build
-# Com Langfuse:      docker compose --profile observability up --build
+# Subir:             docker compose up
 # Reiniciar bancos:  docker compose down -v  (scripts de init so rodam em volume vazio)
 
 x-langfuse-environment: &langfuse-environment
@@ -35,7 +34,7 @@ x-langfuse-environment: &langfuse-environment
 
 services:
   # ------------------------------------------------------------------
-  # Pipeline e bancos
+  # Banco do modernizer
   # ------------------------------------------------------------------
   postgres:
     image: postgres:17
@@ -54,42 +53,11 @@ services:
       timeout: 3s
       retries: 10
 
-  modernizer:
-    build: .
-    env_file: .env
-    environment:
-      # Estas variaveis sobrescrevem as do .env dentro do container
-      DATABASE_URL: postgresql://modernizer:modernizer@postgres:5432/modernizer
-      LEGACY_DATABASE_URL: postgresql://legacy:legacy@legacy-postgres:5432/legacy
-      LANGFUSE_HOST: http://langfuse-web:3000
-      LANGFUSE_BASE_URL: http://langfuse-web:3000
-    ports:
-      - "127.0.0.1:${APP_PORT:-8123}:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      legacy-postgres:
-        condition: service_healthy
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-    restart: unless-stopped
-
   # ------------------------------------------------------------------
-  # Observabilidade: Langfuse self-hosted (profile opcional)
+  # Observabilidade: Langfuse self-hosted
   # ------------------------------------------------------------------
   langfuse-worker:
     image: docker.langfuse.com/langfuse/langfuse-worker:4
-    profiles: [observability]
     restart: unless-stopped
     depends_on: &langfuse-dependencies
       langfuse-postgres:
@@ -104,7 +72,6 @@ services:
 
   langfuse-web:
     image: docker.langfuse.com/langfuse/langfuse:4
-    profiles: [observability]
     restart: unless-stopped
     depends_on: *langfuse-dependencies
     ports:
@@ -127,7 +94,6 @@ services:
 
   langfuse-postgres:
     image: postgres:17
-    profiles: [observability]
     restart: unless-stopped
     environment:
       POSTGRES_DB: postgres
@@ -145,7 +111,6 @@ services:
 
   langfuse-clickhouse:
     image: clickhouse/clickhouse-server:25.12
-    profiles: [observability]
     restart: unless-stopped
     user: "101:101"
     environment:
@@ -171,7 +136,6 @@ services:
 
   langfuse-minio:
     image: cgr.dev/chainguard/minio
-    profiles: [observability]
     restart: unless-stopped
     entrypoint: sh
     command: -c 'mkdir -p /data/langfuse && minio server --address ":9000" --console-address ":9001" /data'
@@ -192,7 +156,6 @@ services:
 
   langfuse-redis:
     image: redis:7
-    profiles: [observability]
     restart: unless-stopped
     environment:
       REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:-langfuse-redis-local}
@@ -214,7 +177,6 @@ services:
 
 volumes:
   modernizer-data:
-  legacy-data:
   langfuse-postgres-data:
   langfuse-clickhouse-data:
   langfuse-clickhouse-logs:

@@ -10,8 +10,10 @@ class PipelineState(TypedDict, total=False):
     report: dict[str, Any]
     generated_code: str
     validation: dict[str, Any]
+    evaluation: dict[str, float]
     generation_attempts: int
     generation_error: str | None
     status: str
     error: str
     history_id: str
+    observability: dict[str, Any]

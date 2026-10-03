@@ -1,9 +1,10 @@
-from typing import Any
+﻿from typing import Any
 
+from modernizer.graph.state import PipelineState
 from modernizer.parsing.parser import parse_procedure
 
 
-def parse_node(state: dict[str, Any]) -> dict[str, Any]:
+def parse_node(state: PipelineState) -> dict[str, Any]:
     report = dict(state.get("report", {}))
     try:
         parsed = parse_procedure(state["source_code"])

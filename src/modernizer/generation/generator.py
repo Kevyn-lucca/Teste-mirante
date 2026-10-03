@@ -1,13 +1,95 @@
 import json
 import re
+from collections.abc import Mapping
 from typing import Any
 
 from langchain.chat_models import init_chat_model
 
 from modernizer.config import settings
 
+# Regras gerais
+_GENERAL_RULES = [
+    "Return only Python 3.14 source code for one complete module, without Markdown fences.",
+    (
+        "Translate procedural control flow into Python and keep database operations as "
+        "parameterized PostgreSQL SQL using SQLAlchemy text() and a caller-provided connection."
+    ),
+    "Use Decimal for monetary values and quantize at each assignment matching the NUMERIC scale.",
+    (
+        "Preserve the transaction, locking, exception, row-count, ordering and fallback "
+        "semantics identified in the analysis below."
+    ),
+    (
+        "Do not invent schema fields; use only columns present in the supplied schema or "
+        "in the original source."
+    ),
+    (
+        "The complete module must pass Ruff, including import sorting and type-hint checks. "
+        "Do not leave unused variables, imports or SQL statements."
+    ),
+    (
+        "Never use except/pass or swallow errors. Re-raise the original error with a bare "
+        "`raise`, never `raise error`, to preserve its traceback. Do not add an except block "
+        "that only re-raises without logging or translating the exception."
+    ),
+    (
+        "When logging, define `logger = logging.getLogger(__name__)` once and call "
+        "logger.exception(...) on that instance, never logging.getLogger(...) at the call site."
+    ),
+    "Fix every issue listed under the previous attempt's validation issues.",
+]
 
-def build_generation_prompt(state: dict[str, Any]) -> str:
+# Regras condicionais
+_CONSTRUCT_RULES: dict[str, list[str]] = {
+    "exception_block": [
+        (
+            "For an exception handler that audits and re-raises, use the separate "
+            "audit_connection contract from the analysis; never write that audit through a "
+            "failed business transaction. If writing the error audit fails, catch only "
+            "SQLAlchemyError, log it with logger.exception(), then bare-raise the original "
+            "business exception."
+        ),
+        (
+            "Keep validation inside the same Python try scope as the source PL/pgSQL "
+            "exception block when that block catches the validation failure, and return the "
+            "source fallback row."
+        ),
+    ],
+    "jsonb": [
+        (
+            "Preserve JSONB numeric types; do not stringify Decimal values in JSON logs. "
+            "When binding parameters to jsonb_build_object, explicitly CAST every value to "
+            "its PostgreSQL type, because the function is polymorphic."
+        ),
+        (
+            "Never pass a Python dict or list directly as a SQLAlchemy text() bind value; use "
+            "jsonb_build_object or json.dumps(...) with CAST(:details AS JSONB)."
+        ),
+    ],
+    "cursor": [
+        (
+            "For cursor/loop processing, avoid per-record queries: fetch the rows and any "
+            "per-row lookup in one set-based statement (for example a JOIN or LEFT JOIN "
+            "LATERAL), with no SELECT inside the Python loop."
+        ),
+    ],
+    "nested_function_call": [
+        (
+            "Preserve the called function's behavior and predicates exactly: reuse the "
+            "function, or replicate the identical filters when inlining."
+        ),
+    ],
+}
+
+
+def _build_rules(constructs: list[str]) -> str:
+    rules = list(_GENERAL_RULES)
+    for construct in dict.fromkeys(constructs):
+        rules.extend(_CONSTRUCT_RULES.get(construct, []))
+    return "\n".join(f"{index}. {rule}" for index, rule in enumerate(rules, start=1))
+
+
+def build_generation_prompt(state: Mapping[str, Any]) -> str:
     parsed = state["parsed"]
     analysis = state["analysis"]
     context = {
@@ -22,42 +104,12 @@ def build_generation_prompt(state: dict[str, Any]) -> str:
         "translation_strategy": analysis["translation_strategy"],
         "risks": analysis["risks"],
     }
-    repair_feedback = state.get("validation", {}).get("issues", [])
+    repair_feedback = (state.get("validation") or {}).get("issues", [])
 
     return "\n\n".join(
         [
             "Generate a Python 3.14 module equivalent to the supplied PL/pgSQL routine.",
-            (
-                "Translate procedural control flow into Python and keep database operations as "
-                "parameterized PostgreSQL SQL using SQLAlchemy text() and a caller-provided connection. "
-                "Use Decimal for monetary values and quantize at each assignment matching NUMERIC scale. "
-                "Preserve transaction, locking, exception, row-count, cursor, ordering, and fallback "
-                "semantics identified below. For an exception handler that audits and re-raises, use "
-                "the separate audit_connection contract in the analysis; never write that audit through "
-                "a failed business transaction. If writing the error audit fails, catch only "
-                "SQLAlchemyError, log it with logging.getLogger(__name__).exception(), then bare-raise "
-                "the original business exception. Never use except/pass or swallow errors. Ensure the "
-                "logger variable refers to a Logger instance; call logger.exception(...) on that "
-                "instance rather than calling logger.getLogger(...). Re-raise the original error with "
-                "bare `raise`, never `raise error`, to preserve its traceback. Do not add an "
-                "except block that only re-raises without logging or translating the exception. "
-                "Preserve nested SQL function semantics and predicates exactly; for fn_saldo_cliente "
-                "the balance includes only contas with status = 'ATIVA'. Keep validation inside the "
-                "same Python try scope as the source PL/pgSQL exception block when that block catches "
-                "the validation failure, and return the source fallback row. "
-                "complete module passes Ruff, including import sorting and type-hint checks. Do not leave "
-                "unused variables or SQL statements. For cursor/loop processing, avoid per-record queries "
-                "by using a set-based join or batch lookup. Preserve JSONB numeric types; do not stringify "
-                "Decimal values in JSON logs; cast JSON text parameters to JSONB when a text payload is "
-                "used. When passing bind parameters to jsonb_build_object, explicitly CAST every value "
-                "to its PostgreSQL type because the function is polymorphic. Never pass a Python dict "
-                "or list directly as a SQLAlchemy text() bind value; use jsonb_build_object or "
-                "json.dumps(...) with CAST(:details AS JSONB). For the transaction-rate "
-                "cursor pattern, the SELECT with LEFT JOIN LATERAL must "
-                "fetch each transaction and its most recent applicable rate in one round trip, with no "
-                "SELECT inside the Python loop. Do not invent schema fields. Return only Python source "
-                "code, without Markdown fences."
-            ),
+            "Rules:\n" + _build_rules(analysis["constructs"]),
             "Structured parse and semantic analysis:\n"
             + json.dumps(context, ensure_ascii=False, indent=2),
             "Optional legacy schema (source: "

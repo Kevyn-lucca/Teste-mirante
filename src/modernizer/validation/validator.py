@@ -1,9 +1,35 @@
-import ast
+﻿import ast
+import json
 import subprocess
+import sys
+from typing import Any
+
+RUFF_BASE = [
+    sys.executable,
+    "-m",
+    "ruff",
+    "check",
+    "--isolated",
+    "--select",
+    "E,F,I,S110",
+    "--stdin-filename",
+    "generated.py",
+]
 
 
-def validate_python(source_code: str) -> dict[str, object]:
-    issues = []
+def _ruff(extra_args: list[str], code: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        [*RUFF_BASE, *extra_args, "-"],
+        input=code,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def validate_python(source_code: str) -> dict[str, Any]:
+    issues: list[str] = []
     try:
         ast.parse(source_code)
     except SyntaxError as error:
@@ -13,27 +39,21 @@ def validate_python(source_code: str) -> dict[str, object]:
             "normalized_code": source_code,
         }
 
-    autofix = subprocess.run(
-        ["ruff", "check", "--fix", "--stdin-filename", "generated.py", "-"],
-        input=source_code,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    normalized_code = autofix.stdout or source_code
-    result = subprocess.run(
-        ["ruff", "check", "--stdin-filename", "generated.py", "-"],
-        input=normalized_code,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if result.returncode:
-        issues.extend(line for line in result.stdout.splitlines() if line.strip())
-        issues.extend(line for line in result.stderr.splitlines() if line.strip())
+    try:
+        fixed = _ruff(["--fix", "--exit-zero"], source_code)
+        normalized_code = fixed.stdout if fixed.returncode == 0 and fixed.stdout else source_code
+    except Exception as error:  # noqa: BLE001
+        issues.append(f"Ruff autofix execution failed: {error}")
+        normalized_code = source_code
 
-    return {
-        "valid": not issues,
-        "issues": issues,
-        "normalized_code": normalized_code,
-    }
+    try:
+        check = _ruff(["--output-format=json"], normalized_code)
+    except Exception as error:  # noqa: BLE001
+        issues.append(f"Ruff validation execution failed: {error}")
+    else:
+        issues += [
+            f"{i['code']} line {i['location']['row']}: {i['message']}"
+            for i in json.loads(check.stdout or "[]")
+        ]
+
+    return {"valid": not issues, "issues": issues, "normalized_code": normalized_code}

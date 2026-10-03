@@ -1,0 +1,55 @@
+{
+  "parsing": {
+    "status": "sucesso",
+    "routine": "sp_atualizar_status_contas_inativas",
+    "kind": "procedure",
+    "features": [
+      "jsonb",
+      "raise",
+      "get_diagnostics"
+    ]
+  },
+  "analysis": {
+    "status": "sucesso",
+    "routine": "sp_atualizar_status_contas_inativas",
+    "risk_count": 3,
+    "risks": [
+      {
+        "feature": "jsonb",
+        "severity": "high",
+        "guidance": "Preservar a construcao JSONB no PostgreSQL ou validar explicitamente a equivalencia do JSON Python."
+      },
+      {
+        "feature": "raise",
+        "severity": "high",
+        "guidance": "Distinguir erros de negocio de mensagens NOTICE/WARNING e manter a propagacao definida pela origem."
+      },
+      {
+        "feature": "get_diagnostics",
+        "severity": "high",
+        "guidance": "Capturar rowcount imediatamente apos o UPDATE correspondente."
+      }
+    ]
+  },
+  "generation": {
+    "status": "sucesso",
+    "attempt": 1
+  },
+  "validation": {
+    "status": "sucesso",
+    "attempt": 1,
+    "issues": [],
+    "autofixes_applied": true
+  },
+  "persistence": {
+    "status": "sucesso",
+    "history_id": "06843778-6807-41ad-adee-4e856ba83ac4"
+  },
+  "evaluation": {
+    "status_success": 1.0,
+    "ast_parse_ok": 1.0,
+    "lint_clean": 1.0,
+    "first_attempt_pass": 1.0,
+    "attempts": 1.0
+  }
+}

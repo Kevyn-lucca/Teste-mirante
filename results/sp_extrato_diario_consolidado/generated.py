@@ -1,29 +1,31 @@
-import datetime
+from datetime import date
+from decimal import Decimal, ROUND_HALF_UP
 import logging
-from decimal import Decimal
-from typing import Any
-
+from typing import Any, Generator
 from sqlalchemy import text
-from sqlalchemy.exc import DBAPIError, SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
+def _q182(value: Any) -> Decimal:
+    if value is None:
+        return Decimal("0.00").quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 def sp_extrato_diario_consolidado(
     conn: Any,
+    audit_connection: Any,
     p_cliente_id: int,
-    p_data_inicio: datetime.date,
-    p_data_fim: datetime.date,
-    audit_conn: Any | None = None,
-) -> list[dict[str, Any]]:
-    if p_data_inicio > p_data_fim:
-        raise ValueError(
-            f"Intervalo invalido: data_inicio ({p_data_inicio}) posterior a data_fim ({p_data_fim})"
-        )
-
+    p_data_inicio: date,
+    p_data_fim: date
+) -> Generator[dict[str, Any], None, None]:
     v_saldo_inicial = Decimal("0.00")
+    v_cliente_existe = False
 
     try:
+        if p_data_inicio > p_data_fim:
+            raise ValueError(f"Intervalo invalido: data_inicio ({p_data_inicio}) posterior a data_fim ({p_data_fim})")
+
         try:
             res_cliente = conn.execute(
                 text(
@@ -33,10 +35,11 @@ def sp_extrato_diario_consolidado(
                     )
                     """
                 ),
-                {"cliente_id": p_cliente_id},
+                {"cliente_id": p_cliente_id}
             ).scalar()
+            v_cliente_existe = bool(res_cliente)
 
-            if not res_cliente:
+            if not v_cliente_existe:
                 raise ValueError(f"Cliente {p_cliente_id} nao encontrado ou inativo")
 
             res_saldo = conn.execute(
@@ -57,144 +60,124 @@ def sp_extrato_diario_consolidado(
                       AND c.status = 'ATIVA'
                     """
                 ),
-                {"cliente_id": p_cliente_id, "data_inicio": p_data_inicio},
+                {"cliente_id": p_cliente_id, "data_inicio": p_data_inicio}
             ).scalar()
+            v_saldo_inicial = _q182(res_saldo)
 
-            v_saldo_inicial = Decimal(str(res_saldo or "0.00")).quantize(Decimal("0.01"))
+        except Exception as inner_err:
+            logger.warning("Falha na inicializacao dos saldos para o cliente %s: %s", p_cliente_id, inner_err)
+            v_saldo_inicial = Decimal("0.00")
 
-        except (DBAPIError, SQLAlchemyError, ValueError) as inner_err:
-            logger.warning(
-                "Falha na inicializacao dos saldos para o cliente %s: %s",
-                p_cliente_id,
-                str(inner_err),
+        audit_stmt = text(
+            """
+            INSERT INTO log_auditoria (entidade, entidade_id, acao, detalhes)
+            VALUES (
+                CAST(:entidade AS VARCHAR),
+                CAST(:entidade_id AS BIGINT),
+                CAST(:acao AS VARCHAR),
+                CAST(:detalhes AS JSONB)
             )
-            v_saldo_inicial = Decimal("0.00").quantize(Decimal("0.01"))
-
-        if audit_conn is not None:
-            try:
-                audit_conn.execute(
-                    text(
-                        """
-                        INSERT INTO log_auditoria (entidade, entidade_id, acao, detalhes)
-                        VALUES (
-                            CAST(:entidade AS VARCHAR),
-                            CAST(:entidade_id AS BIGINT),
-                            CAST(:acao AS VARCHAR),
-                            jsonb_build_object(
-                                CAST('inicio' AS TEXT), CAST(:inicio AS DATE),
-                                CAST('fim' AS TEXT), CAST(:fim AS DATE),
-                                CAST('saldo_base_calculado' AS TEXT), CAST(:saldo_base AS NUMERIC)
-                            )
-                        )
-                        """
-                    ),
-                    {
-                        "entidade": "clientes",
-                        "entidade_id": p_cliente_id,
-                        "acao": "GERAR_EXTRATO_DIARIO",
-                        "inicio": p_data_inicio,
-                        "fim": p_data_fim,
-                        "saldo_base": v_saldo_inicial,
-                    },
-                )
-                audit_conn.commit()
-            except SQLAlchemyError as audit_err:
-                logger.exception("Failed to audit business transaction: %s", audit_err)
-
-        rows = conn.execute(
-            text(
-                """
-                WITH RECURSIVE calendario AS (
-                    SELECT CAST(:p_data_inicio AS DATE) AS dia
-                    UNION ALL
-                    SELECT (dia + INTERVAL '1 day')::DATE
-                    FROM calendario
-                    WHERE dia < CAST(:p_data_fim AS DATE)
-                ),
-                contas_cliente AS (
-                    SELECT id FROM contas WHERE cliente_id = CAST(:p_cliente_id AS BIGINT)
-                ),
-                movimento_diario AS (
-                    SELECT
-                        t.data_transacao::DATE AS dia,
-                        SUM(CASE WHEN t.conta_destino_id IN (SELECT id FROM contas_cliente) THEN t.valor ELSE 0 END) AS creditos,
-                        SUM(CASE WHEN t.conta_origem_id IN (SELECT id FROM contas_cliente) THEN t.valor ELSE 0 END) AS debitos,
-                        MAX(CASE WHEN t.conta_origem_id IN (SELECT id FROM contas_cliente) THEN t.valor ELSE 0 END) AS maior_debito,
-                        COUNT(t.id) AS qtd
-                    FROM transacoes t
-                    WHERE t.status = 'EFETIVADA'
-                      AND t.data_transacao >= CAST(:p_data_inicio AS DATE)
-                      AND t.data_transacao < (CAST(:p_data_fim AS DATE) + INTERVAL '1 day')
-                      AND (
-                          t.conta_origem_id IN (SELECT id FROM contas_cliente)
-                          OR t.conta_destino_id IN (SELECT id FROM contas_cliente)
-                      )
-                    GROUP BY 1
-                ),
-                balanco_diario AS (
-                    SELECT
-                        c.dia,
-                        COALESCE(m.creditos, 0) AS creditos,
-                        COALESCE(m.debitos, 0) AS debitos,
-                        (COALESCE(m.creditos, 0) - COALESCE(m.debitos, 0)) AS liquido,
-                        COALESCE(m.maior_debito, 0) AS maior_saida,
-                        COALESCE(m.qtd, 0)::INT AS qtd
-                    FROM calendario c
-                    LEFT JOIN movimento_diario m ON m.dia = c.dia
-                )
-                SELECT
-                    b.dia AS data_posicao,
-                    b.creditos AS creditos_dia,
-                    b.debitos AS debitos_dia,
-                    b.liquido AS fluxo_liquido,
-                    CAST(:v_saldo_inicial AS NUMERIC) + SUM(b.liquido) OVER (
-                        ORDER BY b.dia 
-                        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                    ) AS saldo_final_dia,
-                    b.maior_saida,
-                    b.qtd AS qtd_operacoes
-                FROM balanco_diario b
-                ORDER BY b.dia
-                """
-            ),
-            {
-                "p_cliente_id": p_cliente_id,
-                "p_data_inicio": p_data_inicio,
-                "p_data_fim": p_data_fim,
-                "v_saldo_inicial": v_saldo_inicial,
-            },
-        ).mappings().all()
-
-        result = []
-        for r in rows:
-            result.append(
+            """
+        )
+        try:
+            audit_connection.execute(
+                audit_stmt,
                 {
-                    "data_posicao": r["data_posicao"],
-                    "creditos_dia": Decimal(str(r["creditos_dia"])).quantize(Decimal("0.01")),
-                    "debitos_dia": Decimal(str(r["debitos_dia"])).quantize(Decimal("0.01")),
-                    "fluxo_liquido": Decimal(str(r["fluxo_liquido"])).quantize(Decimal("0.01")),
-                    "saldo_final_dia": Decimal(str(r["saldo_final_dia"])).quantize(Decimal("0.01")),
-                    "maior_saida": Decimal(str(r["maior_saida"])).quantize(Decimal("0.01")),
-                    "qtd_operacoes": int(r["qtd_operacoes"]),
+                    "entidade": "clientes",
+                    "entidade_id": p_cliente_id,
+                    "acao": "GERAR_EXTRATO_DIARIO",
+                    "detalhes": f'{{"inicio": "{p_data_inicio}", "fim": "{p_data_fim}", "saldo_base_calculado": {v_saldo_inicial}}}'
                 }
             )
-        return result
+            audit_connection.commit()
+        except SQLAlchemyError as audit_err:
+            logger.exception("Failed to write error audit: %s", audit_err)
 
-    except (DBAPIError, SQLAlchemyError, ValueError, TypeError) as err:
-        logger.warning(
-            "Erro critico na geracao do extrato diario do cliente %s: %s. Retornando linha de fallback.",
-            p_cliente_id,
-            str(err),
+        query = text(
+            """
+            WITH RECURSIVE calendario AS (
+                SELECT CAST(:data_inicio AS DATE) AS dia
+                UNION ALL
+                SELECT (dia + INTERVAL '1 day')::DATE
+                FROM calendario
+                WHERE dia < CAST(:data_fim AS DATE)
+            ),
+            contas_cliente AS (
+                SELECT id FROM contas WHERE cliente_id = CAST(:cliente_id AS BIGINT)
+            ),
+            movimento_diario AS (
+                SELECT
+                    t.data_transacao::DATE AS dia,
+                    SUM(CASE WHEN t.conta_destino_id IN (SELECT id FROM contas_cliente) THEN t.valor ELSE 0 END) AS creditos,
+                    SUM(CASE WHEN t.conta_origem_id IN (SELECT id FROM contas_cliente) THEN t.valor ELSE 0 END) AS debitos,
+                    MAX(CASE WHEN t.conta_origem_id IN (SELECT id FROM contas_cliente) THEN t.valor ELSE 0 END) AS maior_debito,
+                    COUNT(t.id) AS qtd
+                FROM transacoes t
+                WHERE t.status = 'EFETIVADA'
+                  AND t.data_transacao >= CAST(:data_inicio AS DATE)
+                  AND t.data_transacao < (CAST(:data_fim AS DATE) + INTERVAL '1 day')
+                  AND (
+                      t.conta_origem_id IN (SELECT id FROM contas_cliente)
+                      OR t.conta_destino_id IN (SELECT id FROM contas_cliente)
+                  )
+                GROUP BY 1
+            ),
+            balanco_diario AS (
+                SELECT
+                    c.dia,
+                    COALESCE(m.creditos, 0) AS creditos,
+                    COALESCE(m.debitos, 0) AS debitos,
+                    (COALESCE(m.creditos, 0) - COALESCE(m.debitos, 0)) AS liquido,
+                    COALESCE(m.maior_debito, 0) AS maior_saida,
+                    COALESCE(m.qtd, 0)::INT AS qtd
+                FROM calendario c
+                LEFT JOIN movimento_diario m ON m.dia = c.dia
+            )
+            SELECT
+                b.dia AS data_posicao,
+                b.creditos AS creditos_dia,
+                b.debitos AS debitos_dia,
+                b.liquido AS fluxo_liquido,
+                CAST(:saldo_inicial AS NUMERIC(18,2)) + SUM(b.liquido) OVER (
+                    ORDER BY b.dia 
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) AS saldo_final_dia,
+                b.maior_saida,
+                b.qtd AS qtd_operacoes
+            FROM balanco_diario b
+            ORDER BY b.dia;
+            """
         )
-        fallback_saldo = v_saldo_inicial if v_saldo_inicial is not None else Decimal("0.00")
-        return [
+
+        rows = conn.execute(
+            query,
             {
-                "data_posicao": p_data_inicio,
-                "creditos_dia": Decimal("0.00").quantize(Decimal("0.01")),
-                "debitos_dia": Decimal("0.00").quantize(Decimal("0.01")),
-                "fluxo_liquido": Decimal("0.00").quantize(Decimal("0.01")),
-                "saldo_final_dia": Decimal(str(fallback_saldo)).quantize(Decimal("0.01")),
-                "maior_saida": Decimal("0.00").quantize(Decimal("0.01")),
-                "qtd_operacoes": 0,
+                "data_inicio": p_data_inicio,
+                "data_fim": p_data_fim,
+                "cliente_id": p_cliente_id,
+                "saldo_inicial": v_saldo_inicial
             }
-        ]
+        ).fetchall()
+
+        for row in rows:
+            yield {
+                "data_posicao": row.data_posicao,
+                "creditos_dia": _q182(row.creditos_dia),
+                "debitos_dia": _q182(row.debitos_dia),
+                "fluxo_liquido": _q182(row.fluxo_liquido),
+                "saldo_final_dia": _q182(row.saldo_final_dia),
+                "maior_saida": _q182(row.maior_saida),
+                "qtd_operacoes": int(row.qtd_operacoes or 0),
+            }
+
+    except Exception as err:
+        logger.warning("Erro critico na geracao do extrato diario do cliente %s: %s. Retornando linha de fallback.", p_cliente_id, err)
+        yield {
+            "data_posicao": p_data_inicio,
+            "creditos_dia": _q182("0"),
+            "debitos_dia": _q182("0"),
+            "fluxo_liquido": _q182("0"),
+            "saldo_final_dia": _q182(v_saldo_inicial),
+            "maior_saida": _q182("0"),
+            "qtd_operacoes": 0,
+        }

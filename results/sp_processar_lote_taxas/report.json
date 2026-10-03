@@ -1,0 +1,49 @@
+{
+  "parsing": {
+    "status": "sucesso",
+    "routine": "sp_processar_lote_taxas",
+    "kind": "procedure",
+    "features": [
+      "cursor",
+      "jsonb"
+    ]
+  },
+  "analysis": {
+    "status": "sucesso",
+    "routine": "sp_processar_lote_taxas",
+    "risk_count": 2,
+    "risks": [
+      {
+        "feature": "cursor",
+        "severity": "high",
+        "guidance": "Carregar as linhas em lote; combine lookups por registro com JOIN/LATERAL ou outra consulta set-based, sem N+1; preservar a ordem do cursor e não deixar SQL preparado sem uso."
+      },
+      {
+        "feature": "jsonb",
+        "severity": "high",
+        "guidance": "Preservar a construcao JSONB no PostgreSQL ou validar explicitamente a equivalencia do JSON Python."
+      }
+    ]
+  },
+  "generation": {
+    "status": "sucesso",
+    "attempt": 1
+  },
+  "validation": {
+    "status": "sucesso",
+    "attempt": 1,
+    "issues": [],
+    "autofixes_applied": false
+  },
+  "persistence": {
+    "status": "sucesso",
+    "history_id": "5dfe5fa2-548a-4c68-9978-2e531b0318d0"
+  },
+  "evaluation": {
+    "status_success": 1.0,
+    "ast_parse_ok": 1.0,
+    "lint_clean": 1.0,
+    "first_attempt_pass": 1.0,
+    "attempts": 1.0
+  }
+}

@@ -1,9 +1,10 @@
-from typing import Any
+﻿from typing import Any
 
 from modernizer.generation.generator import build_generation_prompt, generate_python
+from modernizer.graph.state import PipelineState
 
 
-def generate_node(state: dict[str, Any]) -> dict[str, Any]:
+def generate_node(state: PipelineState) -> dict[str, Any]:
     attempt = state.get("generation_attempts", 0) + 1
     report = dict(state.get("report", {}))
     try:

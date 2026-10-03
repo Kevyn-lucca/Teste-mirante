@@ -1,30 +1,29 @@
 {
   "parsing": {
     "status": "sucesso",
-    "routine": "sp_extrato_diario_consolidado",
-    "kind": "function",
+    "routine": "sp_transferir_entre_contas",
+    "kind": "procedure",
     "features": [
+      "for_update",
       "jsonb",
-      "recursive_cte",
       "raise",
-      "exception_block",
-      "return_query"
+      "exception_block"
     ]
   },
   "analysis": {
     "status": "sucesso",
-    "routine": "sp_extrato_diario_consolidado",
-    "risk_count": 5,
+    "routine": "sp_transferir_entre_contas",
+    "risk_count": 4,
     "risks": [
+      {
+        "feature": "for_update",
+        "severity": "high",
+        "guidance": "Preservar o bloqueio de linha e executar leituras e escritas na mesma transacao do banco."
+      },
       {
         "feature": "jsonb",
         "severity": "high",
         "guidance": "Preservar a construcao JSONB no PostgreSQL ou validar explicitamente a equivalencia do JSON Python."
-      },
-      {
-        "feature": "recursive_cte",
-        "severity": "high",
-        "guidance": "Preservar o limite e a inclusao de meses da recursao; testar periodos de um e varios meses."
       },
       {
         "feature": "raise",
@@ -35,11 +34,6 @@
         "feature": "exception_block",
         "severity": "high",
         "guidance": "Preserve the exact protected exception scope: Python validation must remain inside the same try boundary as the source block, including invalid-period checks. Keep fallback values and audit behavior identical for errors caught by that block."
-      },
-      {
-        "feature": "return_query",
-        "severity": "high",
-        "guidance": "Representar o resultado set-returning como uma colecao tipada e preservar a ordenacao."
       }
     ]
   },
@@ -55,10 +49,9 @@
   },
   "persistence": {
     "status": "sucesso",
-    "history_id": "87a4e66a-85ac-476c-ac2c-ec4e13033298"
+    "history_id": "7c1bfc08-a142-4736-bc5a-7f711460381f"
   },
   "evaluation": {
-    "quality_score": 10.0,
     "status_success": 1.0,
     "ast_parse_ok": 1.0,
     "lint_clean": 1.0,

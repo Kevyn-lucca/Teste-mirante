@@ -1,26 +1,21 @@
 {
   "parsing": {
     "status": "sucesso",
-    "routine": "sp_extrato_diario_consolidado",
+    "routine": "sp_relatorio_mensal_cliente",
     "kind": "function",
     "features": [
-      "jsonb",
       "recursive_cte",
       "raise",
       "exception_block",
-      "return_query"
+      "return_query",
+      "nested_function_call"
     ]
   },
   "analysis": {
     "status": "sucesso",
-    "routine": "sp_extrato_diario_consolidado",
+    "routine": "sp_relatorio_mensal_cliente",
     "risk_count": 5,
     "risks": [
-      {
-        "feature": "jsonb",
-        "severity": "high",
-        "guidance": "Preservar a construcao JSONB no PostgreSQL ou validar explicitamente a equivalencia do JSON Python."
-      },
       {
         "feature": "recursive_cte",
         "severity": "high",
@@ -40,6 +35,11 @@
         "feature": "return_query",
         "severity": "high",
         "guidance": "Representar o resultado set-returning como uma colecao tipada e preservar a ordenacao."
+      },
+      {
+        "feature": "nested_function_call",
+        "severity": "high",
+        "guidance": "Preserve nested function behavior and all its filters. fn_saldo_cliente only sums contas whose status is 'ATIVA'; reuse that function or apply the identical predicate when inlining."
       }
     ]
   },
@@ -51,11 +51,11 @@
     "status": "sucesso",
     "attempt": 1,
     "issues": [],
-    "autofixes_applied": false
+    "autofixes_applied": true
   },
   "persistence": {
     "status": "sucesso",
-    "history_id": "87a4e66a-85ac-476c-ac2c-ec4e13033298"
+    "history_id": "ede0cdb6-1719-4219-b498-7cc5b0c715f0"
   },
   "evaluation": {
     "quality_score": 10.0,

@@ -1,8 +1,44 @@
 [
   {
+    "sample": "fn_saldo_cliente",
+    "status": "sucesso",
+    "history_id": "54c85189-ee47-4220-9b0e-def32134570a",
+    "trace_id": "97c1b9cdc75d058d2de6ba0765cedfd5"
+  },
+  {
+    "sample": "sp_atualizar_status_contas_inativas",
+    "status": "sucesso",
+    "history_id": "06843778-6807-41ad-adee-4e856ba83ac4",
+    "trace_id": "9f140a83543fe1fca00976d513506ae8"
+  },
+  {
+    "sample": "sp_transferir_entre_contas",
+    "status": "sucesso",
+    "history_id": "7c1bfc08-a142-4736-bc5a-7f711460381f",
+    "trace_id": "2d4dee6cb281b6f1c112af2f3d258a25"
+  },
+  {
+    "sample": "sp_processar_lote_taxas",
+    "status": "sucesso",
+    "history_id": "5dfe5fa2-548a-4c68-9978-2e531b0318d0",
+    "trace_id": "74059b2c70d3e0621f3d0591b9529ca5"
+  },
+  {
+    "sample": "sp_relatorio_mensal_cliente",
+    "status": "sucesso",
+    "history_id": "ede0cdb6-1719-4219-b498-7cc5b0c715f0",
+    "trace_id": "a7380fa02f785aefaaa18a1ae4149242"
+  },
+  {
     "sample": "sp_extrato_diario_consolidado",
-    "status": "parcial",
-    "history_id": "791866dd-c254-41c0-a3ab-ecaae611b2dc",
-    "trace_id": "35d6b2565d74391850b4fded36a57247"
+    "status": "sucesso",
+    "history_id": "87a4e66a-85ac-476c-ac2c-ec4e13033298",
+    "trace_id": "9528e82ae79ebd83741eec65ca254b8a"
+  },
+  {
+    "sample": "SELECT_1",
+    "status": "falha",
+    "history_id": "history-id",
+    "trace_id": null
   }
 ]

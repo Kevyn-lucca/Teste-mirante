@@ -1,9 +1,10 @@
-from typing import Any
+﻿from typing import Any
 
+from modernizer.graph.state import PipelineState
 from modernizer.persistence.history import save_execution
 
 
-def persist_node(state: dict[str, Any]) -> dict[str, Any]:
+def persist_node(state: PipelineState) -> dict[str, Any]:
     report = dict(state.get("report", {}))
     status = state.get("status", "falha")
     report["persistence"] = {"status": "sucesso"}

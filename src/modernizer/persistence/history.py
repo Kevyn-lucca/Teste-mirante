@@ -1,4 +1,4 @@
-from typing import Any
+﻿from typing import Any
 from uuid import UUID
 
 import psycopg
@@ -20,10 +20,17 @@ def save_execution(
     with psycopg.connect(database_url) as connection:
         row = connection.execute(
             """
-            INSERT INTO modernization_history (source_code, generated_code, report, status)
+            INSERT INTO modernizer_history (
+                source_code,
+                generated_code,
+                report,
+                status
+            )
             VALUES (%s, %s, %s, %s)
             RETURNING id
             """,
             (source_code, generated_code, Jsonb(report), status),
         ).fetchone()
-    return row[0]
+    if not row:
+        raise RuntimeError("Failed to insert history record")
+    return row[0] if isinstance(row[0], UUID) else UUID(str(row[0]))

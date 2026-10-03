@@ -1,57 +1,87 @@
 from typing import Any
 
+# Orientações de tradução por construção. São genéricas de propósito: valem para
+# qualquer procedure PL/pgSQL, não para um caso de teste específico.
 _RISK_GUIDANCE = {
     "cursor": (
-        "Carregar as linhas em lote; combine lookups por registro com JOIN/LATERAL ou outra consulta "
-        "set-based, sem N+1; preservar a ordem do cursor e não deixar SQL preparado sem uso."
+        "Carregar as linhas em lote. Lookups feitos por registro devem virar JOIN/LATERAL "
+        "ou outra consulta set-based, sem N+1. Preservar a ordem do cursor e não deixar "
+        "SQL preparado sem uso."
     ),
     "for_update": (
-        "Preservar o bloqueio de linha e executar leituras e escritas na mesma transacao do banco."
+        "Preservar o bloqueio de linha e executar leituras e escritas na mesma transação "
+        "do banco."
     ),
     "jsonb": (
-        "Preservar a construcao JSONB no PostgreSQL ou validar explicitamente a equivalencia do JSON Python."
+        "Preservar a construção JSONB no PostgreSQL ou validar explicitamente a "
+        "equivalência do JSON gerado em Python."
     ),
     "recursive_cte": (
-        "Preservar o limite e a inclusao de meses da recursao; testar periodos de um e varios meses."
+        "Preservar o limite e a inclusão de cada passo da recursão. Testar intervalos "
+        "de um e de vários passos."
     ),
     "raise": (
-        "Distinguir erros de negocio de mensagens NOTICE/WARNING e manter a propagacao definida pela origem."
+        "Distinguir erros de negócio (RAISE EXCEPTION) de mensagens NOTICE/WARNING e "
+        "manter a propagação definida pela origem."
     ),
     "exception_block": (
-        "Preserve the exact protected exception scope: Python validation must remain inside the same "
-        "try boundary as the source block, including invalid-period checks. Keep fallback values and "
-        "audit behavior identical for errors caught by that block."
+        "Preservar o escopo exato protegido pelo bloco EXCEPTION: as validações que "
+        "estavam dentro do bloco devem ficar dentro do mesmo try em Python. Manter "
+        "valores de fallback e auditoria idênticos para os erros capturados por ele."
     ),
     "nested_function_call": (
-        "Preserve nested function behavior and all its filters. fn_saldo_cliente only sums contas "
-        "whose status is 'ATIVA'; reuse that function or apply the identical predicate when inlining."
+        "Preservar o comportamento da função chamada, incluindo todos os seus filtros e "
+        "predicados. Reutilizar a função ou, ao fazer inlining, replicar exatamente os "
+        "mesmos predicados."
     ),
     "return_query": (
-        "Representar o resultado set-returning como uma colecao tipada e preservar a ordenacao."
+        "Representar o resultado set-returning como uma coleção tipada e preservar a "
+        "ordenação."
     ),
     "get_diagnostics": (
-        "Capturar rowcount imediatamente apos o UPDATE correspondente."
+        "Capturar o rowcount imediatamente após o comando correspondente."
     ),
+}
+
+# Severidade por construção (critério inicial, ajustável).
+_SEVERITY = {
+    "for_update": "high",
+    "exception_block": "high",
+    "cursor": "high",
+    "recursive_cte": "high",
+    "jsonb": "medium",
+    "raise": "medium",
+    "nested_function_call": "medium",
+    "return_query": "medium",
+    "get_diagnostics": "low",
+}
+
+# Modos de parâmetro do pglast/PostgreSQL (proargmodes).
+_PARAM_DIRECTIONS = {
+    "d": "IN",        # default
+    "i": "IN",
+    "o": "OUT",
+    "b": "INOUT",
+    "v": "VARIADIC",
+    "t": "TABLE",     # colunas de RETURNS TABLE
 }
 
 
 def analyze_procedure(parsed: dict[str, Any]) -> dict[str, Any]:
     features = parsed["features"]
     risks = [
-        {"feature": feature, "severity": "high", "guidance": _RISK_GUIDANCE[feature]}
+        {
+            "feature": feature,
+            "severity": _SEVERITY.get(feature, "medium"),
+            "guidance": _RISK_GUIDANCE[feature],
+        }
         for feature in features
         if feature in _RISK_GUIDANCE
     ]
     parameters = [
         {
             **parameter,
-            "direction": {
-                "d": "IN",
-                "i": "IN",
-                "o": "OUT",
-                "b": "INOUT",
-                "v": "VARIADIC",
-            }.get(parameter["mode"], "UNKNOWN"),
+            "direction": _PARAM_DIRECTIONS.get(parameter["mode"], "UNKNOWN"),
         }
         for parameter in parsed["parameters"]
     ]
@@ -65,30 +95,36 @@ def analyze_procedure(parsed: dict[str, Any]) -> dict[str, Any]:
         "risk_count": len(risks),
         "risks": risks,
         "translation_strategy": {
-            "procedural_logic": "Translate PL/pgSQL control flow into Python.",
-            "database_operations": "Keep data operations as parameterized PostgreSQL SQL.",
-            "monetary_values": "Use Decimal and quantize to the source NUMERIC scale.",
+            "procedural_logic": "Traduzir o fluxo de controle PL/pgSQL para Python.",
+            "database_operations": (
+                "Manter as operações de dados como SQL PostgreSQL parametrizado."
+            ),
+            "monetary_values": (
+                "Usar Decimal e quantizar para a escala NUMERIC da origem."
+            ),
             "exception_auditing": (
-                "When an exception handler writes an audit record and re-raises, accept a separate "
-                "audit_connection and commit that audit in its own transaction so rollback of the "
-                "business transaction does not erase it. Never swallow the original exception."
+                "Quando o handler de exceção grava um registro de auditoria e relança, "
+                "aceitar uma audit_connection separada e fazer commit da auditoria em "
+                "transação própria, para que o rollback da transação de negócio não "
+                "apague o registro. Nunca engolir a exceção original."
                 if "exception_block" in features
-                else "Preserve source exception behavior and re-raise failures."
+                else "Preservar o comportamento de exceções da origem e relançar as falhas."
             ),
             "jsonb": (
-                "Preserve JSONB value types, especially numeric fields; prefer PostgreSQL "
-                "jsonb_build_object with bound parameters instead of stringifying Decimal values. "
-                "Because jsonb_build_object is polymorphic, cast every bind to its concrete PostgreSQL "
-                "type (for example BIGINT, TEXT, DATE, INTEGER, or NUMERIC)."
+                "Preservar os tipos dos valores JSONB, principalmente campos numéricos. "
+                "Preferir jsonb_build_object do PostgreSQL com parâmetros vinculados em "
+                "vez de converter Decimal para string. Como jsonb_build_object é "
+                "polimórfico, fazer cast de cada parâmetro para o tipo PostgreSQL "
+                "concreto (BIGINT, TEXT, DATE, INTEGER ou NUMERIC)."
                 if "jsonb" in features
-                else "No JSONB translation required."
+                else "Nenhuma tradução de JSONB necessária."
             ),
             "bulk_lookup": (
-                "For a cursor over transactions with a per-row rate lookup, use one SELECT with "
-                "LEFT JOIN LATERAL selecting the latest applicable rate for each transaction. "
-                "The Python result loop must not execute SELECT statements."
+                "Para cursor com consulta auxiliar por linha, usar um único SELECT com "
+                "JOIN (por exemplo LEFT JOIN LATERAL) que traga o registro aplicável de "
+                "cada linha. O laço Python do resultado não deve executar SELECT."
                 if "cursor" in features
-                else "No cursor-based lookup to batch."
+                else "Nenhum lookup por cursor para agrupar em lote."
             ),
         },
     }

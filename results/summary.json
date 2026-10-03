@@ -1,44 +1,44 @@
 [
   {
-    "sample": "fn_saldo_cliente",
-    "status": "sucesso",
-    "history_id": "54c85189-ee47-4220-9b0e-def32134570a",
-    "trace_id": "97c1b9cdc75d058d2de6ba0765cedfd5"
-  },
-  {
-    "sample": "sp_atualizar_status_contas_inativas",
-    "status": "sucesso",
-    "history_id": "06843778-6807-41ad-adee-4e856ba83ac4",
-    "trace_id": "9f140a83543fe1fca00976d513506ae8"
-  },
-  {
-    "sample": "sp_transferir_entre_contas",
-    "status": "sucesso",
-    "history_id": "7c1bfc08-a142-4736-bc5a-7f711460381f",
-    "trace_id": "2d4dee6cb281b6f1c112af2f3d258a25"
-  },
-  {
-    "sample": "sp_processar_lote_taxas",
-    "status": "sucesso",
-    "history_id": "5dfe5fa2-548a-4c68-9978-2e531b0318d0",
-    "trace_id": "74059b2c70d3e0621f3d0591b9529ca5"
-  },
-  {
-    "sample": "sp_relatorio_mensal_cliente",
-    "status": "sucesso",
-    "history_id": "ede0cdb6-1719-4219-b498-7cc5b0c715f0",
-    "trace_id": "a7380fa02f785aefaaa18a1ae4149242"
-  },
-  {
-    "sample": "sp_extrato_diario_consolidado",
-    "status": "sucesso",
-    "history_id": "87a4e66a-85ac-476c-ac2c-ec4e13033298",
-    "trace_id": "9528e82ae79ebd83741eec65ca254b8a"
-  },
-  {
     "sample": "SELECT_1",
     "status": "falha",
     "history_id": "history-id",
     "trace_id": null
+  },
+  {
+    "sample": "fn_saldo_cliente",
+    "status": "sucesso",
+    "history_id": "e67df00e-cfab-47e8-9f8c-97942b650095",
+    "trace_id": "0f37cdfbd1a5bdff068db5d5c03591e9"
+  },
+  {
+    "sample": "sp_atualizar_status_contas_inativas",
+    "status": "sucesso",
+    "history_id": "a6ef3000-20ee-46a1-b726-6359772ee461",
+    "trace_id": "2bfd6286dfcd193332214c0340f6cbab"
+  },
+  {
+    "sample": "sp_transferir_entre_contas",
+    "status": "sucesso",
+    "history_id": "40e6dff6-4e59-43df-8a37-256fc3bba71c",
+    "trace_id": "8e76fc1e8e414950965e340c9279a1db"
+  },
+  {
+    "sample": "sp_processar_lote_taxas",
+    "status": "sucesso",
+    "history_id": "52e6022a-aba0-4fae-bafe-17697b96efdd",
+    "trace_id": "6f2badca22caa9fd5d3cc9bac125bb58"
+  },
+  {
+    "sample": "sp_relatorio_mensal_cliente",
+    "status": "sucesso",
+    "history_id": "172b6fb4-a18b-4490-8b47-92c1d904a52c",
+    "trace_id": "8a48a8d80a9125560cf490b9e830a168"
+  },
+  {
+    "sample": "sp_extrato_diario_consolidado",
+    "status": "sucesso",
+    "history_id": "cc17ac60-9a4a-43a3-ae50-ca40a9475edb",
+    "trace_id": "5b68417501b911cc0f779706cd949e91"
   }
 ]

@@ -1,8 +1,5 @@
 name: modernizer
 
-# Subir:             docker compose up
-# Reiniciar bancos:  docker compose down -v  (scripts de init so rodam em volume vazio)
-
 x-langfuse-environment: &langfuse-environment
   NEXTAUTH_URL: http://localhost:3000
   DATABASE_URL: postgresql://postgres:${LANGFUSE_POSTGRES_PASSWORD:-langfuse-local}@langfuse-postgres:5432/postgres
@@ -54,6 +51,31 @@ services:
       retries: 10
 
   # ------------------------------------------------------------------
+  # LangGraph (API na porta 8123)
+  # ------------------------------------------------------------------
+  langgraph:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      langfuse-web:
+        condition: service_started
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://modernizer:modernizer@postgres:5432/modernizer
+      LANGFUSE_HOST: http://langfuse-web:3000
+      LANGFUSE_BASE_URL: http://langfuse-web:3000
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-local}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-local}
+    ports:
+      - "127.0.0.1:8123:8123"
+    volumes:
+      - ./src:/app/src
+      - ./results:/app/results
+
+  # ------------------------------------------------------------------
   # Observabilidade: Langfuse self-hosted
   # ------------------------------------------------------------------
   langfuse-worker:
@@ -86,8 +108,8 @@ services:
       LANGFUSE_INIT_ORG_NAME: Modernizer
       LANGFUSE_INIT_PROJECT_ID: modernizer
       LANGFUSE_INIT_PROJECT_NAME: modernizer
-      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: pk-lf-local
-      LANGFUSE_INIT_PROJECT_SECRET_KEY: sk-lf-local
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-local}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-local}
       LANGFUSE_INIT_USER_EMAIL: admin@local.test
       LANGFUSE_INIT_USER_NAME: admin
       LANGFUSE_INIT_USER_PASSWORD: admin-local-123
@@ -99,8 +121,6 @@ services:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${LANGFUSE_POSTGRES_PASSWORD:-langfuse-local}
-    ports:
-      - "127.0.0.1:5434:5432"
     volumes:
       - langfuse-postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -117,9 +137,6 @@ services:
       CLICKHOUSE_DB: default
       CLICKHOUSE_USER: clickhouse
       CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-langfuse-clickhouse-local}
-    ports:
-      - "127.0.0.1:8124:8123"
-      - "127.0.0.1:9001:9000"
     volumes:
       - langfuse-clickhouse-data:/var/lib/clickhouse
       - langfuse-clickhouse-logs:/var/log/clickhouse-server
@@ -144,7 +161,6 @@ services:
       MINIO_ROOT_PASSWORD: ${LANGFUSE_MINIO_PASSWORD:-langfuse-minio-local}
     ports:
       - "127.0.0.1:9092:9000"
-      - "127.0.0.1:9093:9001"
     volumes:
       - langfuse-minio-data:/data
     healthcheck:
@@ -165,8 +181,6 @@ services:
         "-c",
         'exec redis-server --requirepass "$$REDIS_AUTH" --maxmemory-policy noeviction',
       ]
-    ports:
-      - "127.0.0.1:6380:6379"
     volumes:
       - langfuse-redis-data:/data
     healthcheck:

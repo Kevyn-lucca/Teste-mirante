@@ -7,55 +7,90 @@
       "for_update",
       "jsonb",
       "raise",
-      "exception_block"
+      "exception_block",
+      "nested_function_call"
     ]
   },
   "analysis": {
     "status": "sucesso",
     "routine": "sp_transferir_entre_contas",
-    "risk_count": 4,
+    "kind": "procedure",
+    "parameters": [
+      {
+        "name": "p_conta_origem",
+        "mode": "i",
+        "type": "bigint",
+        "direction": "IN"
+      },
+      {
+        "name": "p_conta_destino",
+        "mode": "i",
+        "type": "bigint",
+        "direction": "IN"
+      },
+      {
+        "name": "p_valor",
+        "mode": "i",
+        "type": "numeric(18, 2)",
+        "direction": "IN"
+      }
+    ],
+    "constructs": [
+      "for_update",
+      "jsonb",
+      "raise",
+      "exception_block",
+      "nested_function_call"
+    ],
+    "risk_count": 5,
     "risks": [
       {
         "feature": "for_update",
         "severity": "high",
-        "guidance": "Preservar o bloqueio de linha e executar leituras e escritas na mesma transacao do banco."
+        "guidance": "Preservar o bloqueio de linha e executar leituras e escritas na mesma transação do banco."
       },
       {
         "feature": "jsonb",
-        "severity": "high",
-        "guidance": "Preservar a construcao JSONB no PostgreSQL ou validar explicitamente a equivalencia do JSON Python."
+        "severity": "medium",
+        "guidance": "Preservar a construção JSONB no PostgreSQL ou validar explicitamente a equivalência do JSON gerado em Python."
       },
       {
         "feature": "raise",
-        "severity": "high",
-        "guidance": "Distinguir erros de negocio de mensagens NOTICE/WARNING e manter a propagacao definida pela origem."
+        "severity": "medium",
+        "guidance": "Distinguir erros de negócio (RAISE EXCEPTION) de mensagens NOTICE/WARNING e manter a propagação definida pela origem."
       },
       {
         "feature": "exception_block",
         "severity": "high",
-        "guidance": "Preserve the exact protected exception scope: Python validation must remain inside the same try boundary as the source block, including invalid-period checks. Keep fallback values and audit behavior identical for errors caught by that block."
+        "guidance": "Preservar o escopo exato protegido pelo bloco EXCEPTION: as validações que estavam dentro do bloco devem ficar dentro do mesmo try em Python. Manter valores de fallback e auditoria idênticos para os erros capturados por ele."
+      },
+      {
+        "feature": "nested_function_call",
+        "severity": "medium",
+        "guidance": "Preservar o comportamento da função chamada, incluindo todos os seus filtros e predicados. Reutilizar a função ou, ao fazer inlining, replicar exatamente os mesmos predicados."
       }
     ]
   },
   "generation": {
     "status": "sucesso",
-    "attempt": 1
+    "attempt": 2
   },
   "validation": {
     "status": "sucesso",
-    "attempt": 1,
+    "attempt": 2,
     "issues": [],
-    "autofixes_applied": false
+    "autofixes_applied": true
   },
   "persistence": {
     "status": "sucesso",
-    "history_id": "7c1bfc08-a142-4736-bc5a-7f711460381f"
+    "history_id": "40e6dff6-4e59-43df-8a37-256fc3bba71c"
   },
   "evaluation": {
+    "quality_score": 8.2,
     "status_success": 1.0,
     "ast_parse_ok": 1.0,
     "lint_clean": 1.0,
-    "first_attempt_pass": 1.0,
-    "attempts": 1.0
+    "first_attempt_pass": 0.0,
+    "attempts": 2.0
   }
 }

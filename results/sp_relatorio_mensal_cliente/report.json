@@ -14,55 +14,113 @@
   "analysis": {
     "status": "sucesso",
     "routine": "sp_relatorio_mensal_cliente",
+    "kind": "function",
+    "parameters": [
+      {
+        "name": "p_cliente_id",
+        "mode": "d",
+        "type": "bigint",
+        "direction": "IN"
+      },
+      {
+        "name": "p_data_inicio",
+        "mode": "d",
+        "type": "date",
+        "direction": "IN"
+      },
+      {
+        "name": "p_data_fim",
+        "mode": "d",
+        "type": "date",
+        "direction": "IN"
+      },
+      {
+        "name": "mes_referencia",
+        "mode": "t",
+        "type": "date",
+        "direction": "TABLE"
+      },
+      {
+        "name": "total_creditos",
+        "mode": "t",
+        "type": "numeric(18, 2)",
+        "direction": "TABLE"
+      },
+      {
+        "name": "total_debitos",
+        "mode": "t",
+        "type": "numeric(18, 2)",
+        "direction": "TABLE"
+      },
+      {
+        "name": "saldo_consolidado",
+        "mode": "t",
+        "type": "numeric(18, 2)",
+        "direction": "TABLE"
+      },
+      {
+        "name": "qtd_transacoes",
+        "mode": "t",
+        "type": "integer",
+        "direction": "TABLE"
+      }
+    ],
+    "constructs": [
+      "recursive_cte",
+      "raise",
+      "exception_block",
+      "return_query",
+      "nested_function_call"
+    ],
     "risk_count": 5,
     "risks": [
       {
         "feature": "recursive_cte",
         "severity": "high",
-        "guidance": "Preservar o limite e a inclusao de meses da recursao; testar periodos de um e varios meses."
+        "guidance": "Preservar o limite e a inclusão de cada passo da recursão. Testar intervalos de um e de vários passos."
       },
       {
         "feature": "raise",
-        "severity": "high",
-        "guidance": "Distinguir erros de negocio de mensagens NOTICE/WARNING e manter a propagacao definida pela origem."
+        "severity": "medium",
+        "guidance": "Distinguir erros de negócio (RAISE EXCEPTION) de mensagens NOTICE/WARNING e manter a propagação definida pela origem."
       },
       {
         "feature": "exception_block",
         "severity": "high",
-        "guidance": "Preserve the exact protected exception scope: Python validation must remain inside the same try boundary as the source block, including invalid-period checks. Keep fallback values and audit behavior identical for errors caught by that block."
+        "guidance": "Preservar o escopo exato protegido pelo bloco EXCEPTION: as validações que estavam dentro do bloco devem ficar dentro do mesmo try em Python. Manter valores de fallback e auditoria idênticos para os erros capturados por ele."
       },
       {
         "feature": "return_query",
-        "severity": "high",
-        "guidance": "Representar o resultado set-returning como uma colecao tipada e preservar a ordenacao."
+        "severity": "medium",
+        "guidance": "Representar o resultado set-returning como uma coleção tipada e preservar a ordenação."
       },
       {
         "feature": "nested_function_call",
-        "severity": "high",
-        "guidance": "Preserve nested function behavior and all its filters. fn_saldo_cliente only sums contas whose status is 'ATIVA'; reuse that function or apply the identical predicate when inlining."
+        "severity": "medium",
+        "guidance": "Preservar o comportamento da função chamada, incluindo todos os seus filtros e predicados. Reutilizar a função ou, ao fazer inlining, replicar exatamente os mesmos predicados."
       }
     ]
   },
   "generation": {
     "status": "sucesso",
-    "attempt": 1
+    "attempt": 2
   },
   "validation": {
     "status": "sucesso",
-    "attempt": 1,
+    "attempt": 2,
     "issues": [],
     "autofixes_applied": true
   },
   "persistence": {
     "status": "sucesso",
-    "history_id": "ede0cdb6-1719-4219-b498-7cc5b0c715f0"
+    "history_id": "172b6fb4-a18b-4490-8b47-92c1d904a52c"
   },
   "evaluation": {
-    "quality_score": 10.0,
+    "quality_score": 8.2,
     "status_success": 1.0,
     "ast_parse_ok": 1.0,
     "lint_clean": 1.0,
-    "first_attempt_pass": 1.0,
-    "attempts": 1.0
+    "first_attempt_pass": 0.0,
+    "attempts": 2.0
   }
 }

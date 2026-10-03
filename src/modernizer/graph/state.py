@@ -1,10 +1,15 @@
 from typing import Any, TypedDict
 
+class InputState(TypedDict,total=False):
+    source_code:str
+    schema_source:str
+
 
 class PipelineState(TypedDict, total=False):
     source_code: str
     schema_sql: str | None
     schema_source: str
+
     parsed: dict[str, Any]
     analysis: dict[str, Any]
     report: dict[str, Any]

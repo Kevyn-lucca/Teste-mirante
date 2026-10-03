@@ -20,7 +20,7 @@ def save_execution(
     with psycopg.connect(database_url) as connection:
         row = connection.execute(
             """
-            INSERT INTO modernizer_history (
+            INSERT INTO modernization_history (
                 source_code,
                 generated_code,
                 report,

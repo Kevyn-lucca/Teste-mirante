@@ -2,7 +2,7 @@
 
 from langgraph.graph import END, START, StateGraph
 
-from modernizer.graph.state import PipelineState
+from modernizer.graph.state import PipelineState,InputState
 from modernizer.nodes.analyze import analyze_node
 from modernizer.nodes.evaluate import evaluate_node
 from modernizer.nodes.generate import generate_node
@@ -26,7 +26,7 @@ def _after_validation(state: PipelineState) -> Literal["generate", "persist"]:
     return "persist"
 
 
-_builder = StateGraph(PipelineState)
+_builder = StateGraph(PipelineState,input_schema=InputState)
 _builder.add_node("parse", parse_node)
 _builder.add_node("analyze", analyze_node)
 _builder.add_node("generate", generate_node)
